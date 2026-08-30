@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #FAF7F2;
+    color: #3C1318;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
+  h1, .font-serif-headline {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Design Tokens from Reference Photo */
+.bg-cream-page {
+  background-color: #FAF7F2;
+}
+
+.text-burgundy-main {
+  color: #3C1318;
+}
+
+.bg-burgundy-main {
+  background-color: #3C1318;
+}
+
+.text-teal-brand {
+  color: #35979A;
+}
+
+.bg-teal-brand {
+  background-color: #35979A;
+}
+
+.border-teal-brand {
+  border-color: #35979A;
+}
+
+/* Glass & Card Shadows matching mockup */
+.shadow-search-card {
+  box-shadow: 0 15px 35px -5px rgba(60, 19, 24, 0.06), 0 5px 15px -3px rgba(0, 0, 0, 0.03);
+}
+
+.shadow-step-card {
+  box-shadow: 0 4px 20px -2px rgba(60, 19, 24, 0.03);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF7F2;
+}
+::-webkit-scrollbar-thumb {
+  background: #3C1318/20;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3C1318/40;
+}
+
