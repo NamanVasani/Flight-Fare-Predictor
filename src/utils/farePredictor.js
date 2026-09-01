@@ -4,7 +4,7 @@ import { calculateDistanceKm } from '../data/airports';
 // Dynamic API_BASE — uses Render URL if configured, otherwise falls back to local port 5001 or fallback mock
 const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? "http://localhost:5001"
-  : "https://YOUR-RENDER-URL.onrender.com";
+  : "https://flight-fare-predictor-ggn7.onrender.com";
 
 // Only these cities exist in the trained dataset — anything else is flagged as unsupported
 const KNOWN_CITIES = new Set(["Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore", "Cochin", "Hyderabad"]);
