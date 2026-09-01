@@ -10,7 +10,7 @@ export const AIRPORTS = [
   },
   {
     code: "BLR",
-    city: "Bengaluru",
+    city: "Banglore", // Matched to dataset encoding "Banglore"
     name: "Kempegowda International",
     country: "India",
     lat: 13.1986,
@@ -70,42 +70,6 @@ export const AIRPORTS = [
     lat: 23.0734,
     lng: 72.6266,
     badge: "AMD • Ahmedabad"
-  },
-  {
-    code: "DXB",
-    city: "Dubai",
-    name: "Dubai International Airport",
-    country: "UAE",
-    lat: 25.2532,
-    lng: 55.3657,
-    badge: "DXB • Dubai"
-  },
-  {
-    code: "LHR",
-    city: "London",
-    name: "London Heathrow Airport",
-    country: "United Kingdom",
-    lat: 51.4700,
-    lng: -0.4543,
-    badge: "LHR • London"
-  },
-  {
-    code: "SIN",
-    city: "Singapore",
-    name: "Singapore Changi Airport",
-    country: "Singapore",
-    lat: 1.3644,
-    lng: 103.9915,
-    badge: "SIN • Singapore"
-  },
-  {
-    code: "JFK",
-    city: "New York",
-    name: "John F. Kennedy International",
-    country: "USA",
-    lat: 40.6413,
-    lng: -73.7781,
-    badge: "JFK • New York"
   }
 ];
 
@@ -114,15 +78,15 @@ export function getAirportByCode(code) {
 }
 
 export function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of the earth in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
