@@ -63,7 +63,7 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
     setTimeout(() => setStep('ticket'), 1800);
   };
 
-  const seatLetter = (idx) => String.fromCharCode(65 + (idx % 6)) + (12 + idx);
+  const seatLetter = (idx) => 'A' + (11 + idx);
   const flightNo = `${flight.code}-${100 + (flight.depHour || 0) * 3}`;
 
   // Draws one boarding-pass page for a single passenger onto a jsPDF doc
