@@ -38,7 +38,8 @@ export async function predictCategorizedFlightFares(source, destination, date) {
     const data = await res.json();
     if (!data.success || !Array.isArray(data.flights)) throw new Error("Invalid API response format");
 
-    const flights = data.flights.map(f => ({
+    // Map and sort all flights strictly by numericPrice ascending to ensure 100% price tier consistency
+    const allFlights = data.flights.map(f => ({
       id: f.id,
       code: f.logo,
       airline: f.airline,
@@ -48,14 +49,33 @@ export async function predictCategorizedFlightFares(source, destination, date) {
       stopsLabel: f.stops,
       formattedPrice: f.price,
       numericPrice: f.numericPrice,
-      tier: f.predictedTier || f.tier,
+      predictedTier: f.predictedTier || f.tier,
       isOfflineFallback: false,
-    }));
+    })).sort((a, b) => a.numericPrice - b.numericPrice);
+
+    // Monotonic Price Partitioning: Low Pricing < Medium Pricing < High Pricing
+    const n = allFlights.length;
+    let lowTier = [];
+    let mediumTier = [];
+    let highTier = [];
+
+    if (n <= 3) {
+      lowTier = allFlights.slice(0, 1);
+      mediumTier = allFlights.slice(1, 2);
+      highTier = allFlights.slice(2);
+    } else {
+      const lowCount = Math.max(2, Math.floor(n * 0.3));
+      const mediumCount = Math.max(2, Math.floor(n * 0.35));
+      
+      lowTier = allFlights.slice(0, lowCount);
+      mediumTier = allFlights.slice(lowCount, lowCount + mediumCount);
+      highTier = allFlights.slice(lowCount + mediumCount);
+    }
 
     return {
-      lowTier: flights.filter(f => f.tier === "Low"),
-      mediumTier: flights.filter(f => f.tier === "Medium"),
-      highTier: flights.filter(f => f.tier === "High" || f.tier === "Premium"),
+      lowTier,
+      mediumTier,
+      highTier,
       unsupportedRoute: false,
       isOfflineFallback: false
     };
@@ -118,10 +138,10 @@ function fallbackCategorizedFares(source, destination) {
   const mediumTier = [
     { id: 'uk-1', code: 'UK', logoBg: '#4A154B', airline: 'Vistara', depTime: '07:30 AM', arrTime: '12:40 PM', duration: '5h 10m', stopsLabel: '1 Stop', formattedPrice: '₹ 8,650', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
     { id: 'ai-1', code: 'AI', logoBg: '#E63946', airline: 'Air India', depTime: '11:00 AM', arrTime: '04:30 PM', duration: '5h 30m', stopsLabel: '1 Stop', formattedPrice: '₹ 9,240', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
-    { id: 'op-1', code: 'OP', logoBg: '#FF5A16', airline: 'Akasa Air', depTime: '03:20 PM', arrTime: '08:10 PM', duration: '4h 50m', stopsLabel: '1 Stop', formattedPrice: '₹ 11,500', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
-    { id: 'g8-1', code: 'G8', logoBg: '#0070BA', airline: 'Go First', depTime: '08:45 PM', arrTime: '02:25 AM', duration: '5h 40m', stopsLabel: '1 Stop', formattedPrice: '₹ 12,780', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' }
+    { id: 'op-1', code: 'OP', logoBg: '#FF5A16', airline: 'Akasa Air', depTime: '03:20 PM', arrTime: '08:10 PM', duration: '4h 50m', stopsLabel: '1 Stop', formattedPrice: '₹ 11,500', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' }
   ];
   const highTier = [
+    { id: 'g8-1', code: 'G8', logoBg: '#0070BA', airline: 'Go First', depTime: '08:45 PM', arrTime: '02:25 AM', duration: '5h 40m', stopsLabel: '1 Stop', formattedPrice: '₹ 12,780', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
     { id: 'ai-2', code: 'AI', logoBg: '#E63946', airline: 'Air India', depTime: '06:55 AM', arrTime: '06:15 PM', duration: '11h 20m', stopsLabel: '2 Stops', formattedPrice: '₹ 19,850', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
     { id: 'uk-2', code: 'UK', logoBg: '#451343', airline: 'Vistara', depTime: '10:40 AM', arrTime: '09:30 PM', duration: '10h 50m', stopsLabel: '2 Stops', formattedPrice: '₹ 21,600', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' }
   ];
