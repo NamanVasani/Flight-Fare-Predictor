@@ -141,7 +141,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
               </div>
               <div className="space-y-4">
                 {lowTier.map((flight) => (
-                  <div key={flight.id} onClick={() => onSearchFlight(flight)} className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/80 hover:border-emerald-500/60 hover:shadow-xl transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 cursor-pointer">
+                  <div key={flight.id} onClick={() => onSearchFlight(flight.code)} className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/80 hover:border-emerald-500/60 hover:shadow-xl transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 cursor-pointer">
                     <div className="flex items-center space-x-4">
                       <div className="w-14 h-14 rounded-2xl text-white flex items-center justify-center font-black text-xl shrink-0" style={{ backgroundColor: flight.logoBg }}>{flight.code}</div>
                       <span className="font-black text-[#3C1318] text-2xl sm:text-3xl">{flight.airline}</span>
@@ -186,7 +186,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
               </div>
               <div className="space-y-4">
                 {mediumTier.map((flight) => (
-                  <div key={flight.id} onClick={() => onSearchFlight(flight)} className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/80 hover:border-blue-500/60 hover:shadow-xl transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 cursor-pointer">
+                  <div key={flight.id} onClick={() => onSearchFlight(flight.code)} className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/80 hover:border-blue-500/60 hover:shadow-xl transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 cursor-pointer">
                     <div className="flex items-center space-x-4">
                       <div className="w-14 h-14 rounded-2xl text-white flex items-center justify-center font-black text-xl shrink-0" style={{ backgroundColor: flight.logoBg }}>{flight.code}</div>
                       <span className="font-black text-[#3C1318] text-2xl sm:text-3xl">{flight.airline}</span>
@@ -231,7 +231,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
               </div>
               <div className="space-y-4">
                 {highTier.map((flight) => (
-                  <div key={flight.id} onClick={() => onSearchFlight(flight)} className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/80 hover:border-purple-500/60 hover:shadow-xl transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 cursor-pointer">
+                  <div key={flight.id} onClick={() => onSearchFlight(flight.code)} className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/80 hover:border-purple-500/60 hover:shadow-xl transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 cursor-pointer">
                     <div className="flex items-center space-x-4">
                       <div className="w-14 h-14 rounded-2xl text-white flex items-center justify-center font-black text-xl shrink-0" style={{ backgroundColor: flight.logoBg }}>{flight.code}</div>
                       <span className="font-black text-[#3C1318] text-2xl sm:text-3xl">{flight.airline}</span>
