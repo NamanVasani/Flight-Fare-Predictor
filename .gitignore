@@ -2,3 +2,4 @@ node_modules/
 dist/
 catboost_info/
 .DS_Store
+.venv/
