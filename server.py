@@ -17,7 +17,7 @@ reg_cols = joblib.load(os.path.join(MODEL_DIR, 'reg_columns.pkl'))
 clf_cols = joblib.load(os.path.join(MODEL_DIR, 'clf_columns.pkl'))
 classes = joblib.load(os.path.join(MODEL_DIR, 'label_encoder_classes.pkl'))
 
-def prepare_input(source_name, dest_name, airline_name, dep_hour, duration_mins, total_stops, journey_day, journey_month):
+def prepare_input(source_name, dest_name, airline_name, dep_hour, duration_mins, total_stops, journey_day, journey_month, additional_info="No Info"):
     # Standardize names as in FLIGHT1.py
     if source_name == "New Delhi": source_name = "Delhi"
     if dest_name == "New Delhi": dest_name = "Delhi"
@@ -29,7 +29,7 @@ def prepare_input(source_name, dest_name, airline_name, dep_hour, duration_mins,
     df['Total_Stops'] = int(total_stops)
     df['Journey_Date'] = int(journey_day)
     df['Journey_Month'] = int(journey_month)
-    df['Estimated_Time_of_Arrival'] = (int(dep_hour) + int(duration_mins // 60)) % 24
+    df['Estimated_Time_of_Arrival'] = ((int(dep_hour) * 60 + int(duration_mins)) // 60) % 24
 
     # Bucket_Night: 18..23 or 0..5
     if (18 <= dep_hour <= 23) or (0 <= dep_hour < 6):
@@ -59,7 +59,12 @@ def prepare_input(source_name, dest_name, airline_name, dep_hour, duration_mins,
     if dest_col in df.columns:
         df[dest_col] = 1
 
-    df['Additional_Info_No Info'] = 1
+    info_col = f"Additional_Info_{additional_info}"
+    if info_col in df.columns:
+        df[info_col] = 1
+    elif "Additional_Info_No Info" in df.columns:
+        df["Additional_Info_No Info"] = 1
+
     return df
 
 class PredictHandler(http.server.BaseHTTPRequestHandler):
@@ -104,16 +109,18 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
             data = {}
 
         if self.path == '/api/predict':
-            source = data.get('source', 'Delhi')
-            dest = data.get('destination', 'Cochin')
-            airline = data.get('airline', 'IndiGo')
-            dep_hour = int(data.get('depHour', 6))
-            duration = int(data.get('durationMins', 110))
-            stops = int(data.get('stops', 0))
-            day = int(data.get('day', 15))
-            month = int(data.get('month', 9))
+            # Support both snake_case and camelCase parameters (Item #11 fix)
+            source = data.get('source', data.get('Source', 'Delhi'))
+            dest = data.get('destination', data.get('Destination', data.get('dest', 'Cochin')))
+            airline = data.get('airline', data.get('Airline', 'IndiGo'))
+            dep_hour = int(data.get('dep_hour', data.get('depHour', data.get('dep_time', 6))))
+            duration = int(data.get('duration_mins', data.get('durationMins', data.get('duration', 110))))
+            stops = int(data.get('stops', data.get('total_stops', data.get('totalStops', 0))))
+            day = int(data.get('day', data.get('journey_day', data.get('journey_date', data.get('journeyDate', 15)))))
+            month = int(data.get('month', data.get('journey_month', data.get('journeyMonth', 9))))
+            additional_info = data.get('additional_info', data.get('additionalInfo', data.get('Additional_Info', 'No Info')))
 
-            df = prepare_input(source, dest, airline, dep_hour, duration, stops, day, month)
+            df = prepare_input(source, dest, airline, dep_hour, duration, stops, day, month, additional_info)
 
             pred_xgb_log = float(xgb_reg.predict(df)[0])
             pred_cat_log = float(cat_reg.predict(df)[0])
@@ -141,7 +148,8 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
                     "duration_mins": duration,
                     "stops": stops,
                     "day": day,
-                    "month": month
+                    "month": month,
+                    "additional_info": additional_info
                 }
             }
 
@@ -153,10 +161,10 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
             
         elif self.path == '/api/search':
             # Generate flight list categorized into Low, Medium, High pricing tiers
-            source = data.get('source', 'Ahmedabad')
-            dest = data.get('destination', 'Delhi')
-            day = int(data.get('day', 15))
-            month = int(data.get('month', 9))
+            source = data.get('source', data.get('Source', 'Ahmedabad'))
+            dest = data.get('destination', data.get('Destination', 'Delhi'))
+            day = int(data.get('day', data.get('journey_day', 15)))
+            month = int(data.get('month', data.get('journey_month', 9)))
 
             airlines_info = [
                 {"code": "6E", "name": "IndiGo", "logo_bg": "#0B2545", "text_color": "#059669", "tier_hint": "Low", "dep": "06:20 AM", "dep_h": 6, "dur": 110, "arr": "08:10 AM", "stops": "Non-stop", "stop_num": 0},
@@ -176,16 +184,8 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
                 pred_cat = float(cat_reg.predict(df)[0])
                 ensemble_price = float(np.expm1((pred_xgb + pred_cat) / 2))
                 
-                # Apply base scaling for display match with exact mockup values if AMD->DEL
+                # Item #10 Fix: Pure ML ensemble model pricing (removed hardcoded AMD->DEL override block)
                 calculated_fare = ensemble_price
-                if source in ["Ahmedabad", "AMD"] and dest in ["Delhi", "DEL"]:
-                    if item["tier_hint"] == "Low":
-                        calculated_fare = 4290 if item["code"] == "6E" else 4800
-                    elif item["tier_hint"] == "Medium":
-                        fares_map = {"UK": 8650, "AI": 9240, "OP": 11500, "G8": 12780}
-                        calculated_fare = fares_map.get(item["code"], round(ensemble_price * 1.5))
-                    elif item["tier_hint"] == "High":
-                        calculated_fare = 19850 if item["dep_h"] == 6 else 21600
 
                 clf_idx = int(xgb_clf.predict(df)[0])
                 predicted_tier = classes[clf_idx]
@@ -219,6 +219,8 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
 print(f"Starting ML Server on port {PORT}...")
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
+    allow_reuse_address = True
 
 httpd = ThreadedTCPServer(("", PORT), PredictHandler)
 httpd.serve_forever()
+
