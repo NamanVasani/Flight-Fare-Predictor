@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
-import { X, Plane, ArrowRight, CreditCard, Smartphone, Upload, CheckCircle2, Download, Loader2 } from 'lucide-react';
+import { X, Plane, ArrowRight, CreditCard, Smartphone, Upload, CheckCircle2, Download, Loader2, ArrowLeft } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 export default function FlightResultsModal({ isOpen, onClose, source, destination, date, flight }) {
-  const [step, setStep] = useState('passengers'); // passengers -> payment -> processing -> ticket
+  const [step, setStep] = useState('passengers');
   const [passengerCount, setPassengerCount] = useState(1);
   const [passengers, setPassengers] = useState([{ name: '', age: '', aadharName: '' }]);
-  const [paymentCategory, setPaymentCategory] = useState('card'); // card | upi
+  const [paymentCategory, setPaymentCategory] = useState('card');
   const [cardType, setCardType] = useState('credit');
   const [upiApp, setUpiApp] = useState('googlepay');
   const [bookingId] = useState(() => 'FF' + Math.floor(100000 + Math.random() * 900000));
 
   if (!isOpen || !flight) return null;
+
+  const unitPrice = flight.numericPrice || 0;
+  const totalPrice = unitPrice * passengerCount;
+  const formattedUnit = flight.formattedPrice;
+  const formattedTotal = `₹ ${Math.round(totalPrice).toLocaleString('en-IN')}`;
+  const airlineColor = flight.logoBg || '#3C1318';
 
   const resetAndClose = () => {
     setStep('passengers');
@@ -47,54 +53,80 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
     setTimeout(() => setStep('ticket'), 1800);
   };
 
+  const ticketNumber = (idx) => `${bookingId}-${String(idx + 1).padStart(2, '0')}`;
+  const seatLetter = (idx) => String.fromCharCode(65 + idx) + (12 + idx);
+
   const downloadTicketPdf = () => {
     const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text('FlyFinder — E-Ticket', 20, 20);
-    doc.setFontSize(11);
-    doc.text(`Booking ID: ${bookingId}`, 20, 32);
-    doc.text(`Date of Journey: ${date}`, 20, 40);
-    doc.line(20, 45, 190, 45);
+    passengers.forEach((p, idx) => {
+      if (idx > 0) doc.addPage();
+      let y = 20;
+      doc.setFillColor(60, 19, 24);
+      doc.rect(0, 0, 210, 32, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.text('FlyFinder — Boarding Pass', 14, 18);
+      doc.setFontSize(10);
+      doc.text(`Ticket ${ticketNumber(idx)}`, 14, 26);
+      doc.setTextColor(0, 0, 0);
+      y = 42;
 
-    doc.setFontSize(14);
-    doc.text(`${source.city} (${source.code})  →  ${destination.city} (${destination.code})`, 20, 55);
+      doc.setFontSize(20);
+      doc.text(`${source.code}`, 20, y);
+      doc.setFontSize(10);
+      doc.text('->', 60, y - 2);
+      doc.setFontSize(20);
+      doc.text(`${destination.code}`, 70, y);
+      y += 8;
+      doc.setFontSize(10);
+      doc.text(`${source.city}  to  ${destination.city}`, 20, y);
+      y += 10;
 
-    doc.setFontSize(11);
-    doc.text(`Airline: ${flight.airline} (${flight.code})`, 20, 65);
-    doc.text(`Departure: ${flight.depTime}`, 20, 72);
-    doc.text(`Arrival: ${flight.arrTime}`, 20, 79);
-    doc.text(`Duration: ${flight.duration}  •  ${flight.stopsLabel}`, 20, 86);
-    doc.text(`Fare (per model prediction): ${flight.formattedPrice}`, 20, 93);
-    doc.line(20, 100, 190, 100);
+      doc.line(20, y, 190, y);
+      y += 8;
+      doc.setFontSize(11);
+      doc.text(`Passenger: ${p.name}`, 20, y);
+      doc.text(`Age: ${p.age}`, 140, y);
+      y += 7;
+      doc.text(`Airline: ${flight.airline} (${flight.code})`, 20, y);
+      doc.text(`Seat: ${seatLetter(idx)}`, 140, y);
+      y += 7;
+      doc.text(`Departure: ${flight.depTime}`, 20, y);
+      doc.text(`Arrival: ${flight.arrTime}`, 140, y);
+      y += 7;
+      doc.text(`Duration: ${flight.duration}`, 20, y);
+      doc.text(`${flight.stopsLabel}`, 140, y);
+      y += 7;
+      doc.text(`Date of Journey: ${date}`, 20, y);
+      y += 7;
+      doc.text(`Fare Paid: ${formattedUnit}`, 20, y);
+      y += 12;
 
-    doc.setFontSize(12);
-    doc.text('Passengers', 20, 110);
-    doc.setFontSize(10);
-    passengers.forEach((p, i) => {
-      doc.text(`${i + 1}. ${p.name}  (Age: ${p.age})`, 25, 118 + i * 7);
+      doc.line(20, y, 190, y);
+      y += 8;
+      doc.setFontSize(9);
+      doc.text('Demo ticket generated for a student/portfolio project. Not valid for actual travel.', 20, y);
     });
-
-    const footerY = 118 + passengers.length * 7 + 12;
-    doc.setFontSize(9);
-    doc.text('This is a demo ticket generated for a student/portfolio project.', 20, footerY);
-    doc.text('Not valid for actual travel.', 20, footerY + 6);
-
-    doc.save(`FlyFinder-Ticket-${bookingId}.pdf`);
+    doc.save(`FlyFinder-Tickets-${bookingId}.pdf`);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3C1318]/65 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-stone-200 shadow-2xl p-6 sm:p-8 relative">
+    <div className="fixed inset-0 z-50 bg-[#FAF7F2] overflow-y-auto animate-fade-in">
+      <div className="max-w-3xl mx-auto min-h-screen px-4 sm:px-8 py-8">
 
-        <button
-          onClick={resetAndClose}
-          className="absolute top-6 right-6 p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-[#3C1318] transition-colors cursor-pointer z-10"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={step === 'passengers' ? resetAndClose : () => setStep(step === 'payment' ? 'passengers' : 'passengers')}
+            className="flex items-center gap-2 text-stone-500 hover:text-[#3C1318] font-bold text-sm cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" /> {step === 'passengers' ? 'Back to results' : 'Back'}
+          </button>
+          <button onClick={resetAndClose} className="p-2 rounded-full bg-white hover:bg-stone-200 text-[#3C1318] shadow-sm cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-        {/* Flight summary header, shown on every step */}
-        <div className="mb-6">
+        <div className="bg-white rounded-3xl border border-stone-200 shadow-lg p-6 sm:p-8 mb-6">
           <div className="text-xs text-stone-500 font-medium mb-1">{date}</div>
           <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#3C1318] mb-1 flex items-center gap-2">
             <span>{source.city} ({source.code})</span>
@@ -105,12 +137,11 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
             <Plane className="w-4 h-4 text-stone-400" />
             <span>{flight.airline} • {flight.depTime} → {flight.arrTime} • {flight.duration} • {flight.stopsLabel}</span>
           </div>
-          <div className="text-lg font-extrabold text-[#3C1318] mt-1">{flight.formattedPrice} <span className="text-xs font-medium text-stone-500">per passenger (model predicted)</span></div>
+          <div className="text-sm font-bold text-stone-500 mt-1">{formattedUnit} per passenger</div>
         </div>
 
-        {/* STEP 1: PASSENGER DETAILS */}
         {step === 'passengers' && (
-          <div className="space-y-5">
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-lg p-6 sm:p-8 space-y-5">
             <h3 className="text-sm font-extrabold uppercase tracking-wider text-stone-500">Passenger Details</h3>
 
             <div className="flex items-center gap-3">
@@ -159,6 +190,11 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
               Demo project: uploaded files are never sent or saved anywhere — only the filename is shown here.
             </div>
 
+            <div className="flex justify-between items-center border-t border-stone-200 pt-4">
+              <span className="text-sm font-bold text-stone-600">Total ({passengerCount} × {formattedUnit})</span>
+              <span className="text-xl font-extrabold text-[#3C1318]">{formattedTotal}</span>
+            </div>
+
             <button
               onClick={handleConfirmPassengers}
               disabled={!allPassengersValid}
@@ -169,9 +205,8 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
           </div>
         )}
 
-        {/* STEP 2: PAYMENT */}
         {step === 'payment' && (
-          <div className="space-y-5">
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-lg p-6 sm:p-8 space-y-5">
             <h3 className="text-sm font-extrabold uppercase tracking-wider text-stone-500">Payment (Demo — no real charges)</h3>
 
             <div className="grid grid-cols-2 gap-3">
@@ -213,67 +248,115 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
               </div>
             )}
 
-            <div className="flex gap-3">
-              <button onClick={() => setStep('passengers')} className="flex-1 border border-stone-300 text-stone-600 font-bold py-3 rounded-xl cursor-pointer">Back</button>
-              <button onClick={handlePay} className="flex-1 bg-[#3C1318] hover:bg-[#280C10] text-white font-bold py-3 rounded-xl cursor-pointer">Pay {flight.formattedPrice}</button>
+            <div className="flex justify-between items-center border-t border-stone-200 pt-4">
+              <span className="text-sm font-bold text-stone-600">Total ({passengerCount} × {formattedUnit})</span>
+              <span className="text-xl font-extrabold text-[#3C1318]">{formattedTotal}</span>
             </div>
+
+            <button onClick={handlePay} className="w-full bg-[#3C1318] hover:bg-[#280C10] text-white font-bold py-3 rounded-xl cursor-pointer">Pay {formattedTotal}</button>
           </div>
         )}
 
-        {/* STEP 3: PROCESSING */}
         {step === 'processing' && (
-          <div className="flex flex-col items-center justify-center py-16 space-y-4">
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-lg flex flex-col items-center justify-center py-24 space-y-4">
             <Loader2 className="w-10 h-10 animate-spin text-[#3C1318]" />
-            <div className="font-bold text-stone-600">Processing payment…</div>
+            <div className="font-bold text-stone-600">Processing payment of {formattedTotal}…</div>
           </div>
         )}
 
-        {/* STEP 4: TICKET */}
         {step === 'ticket' && (
-          <div className="space-y-5">
-            <div className="flex items-center gap-2 text-emerald-600">
-              <CheckCircle2 className="w-6 h-6" />
-              <span className="font-extrabold">Booking Confirmed</span>
-            </div>
-
-            <div className="border-2 border-dashed border-stone-300 rounded-2xl p-5 bg-[#FAF7F2]">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <div className="text-xs text-stone-500 font-medium">Booking ID</div>
-                  <div className="font-extrabold text-[#3C1318]">{bookingId}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-stone-500 font-medium">Date of Journey</div>
-                  <div className="font-extrabold text-[#3C1318]">{date}</div>
-                </div>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <CheckCircle2 className="w-6 h-6" />
+                <span className="font-extrabold">Booking Confirmed — {passengers.length} Ticket{passengers.length > 1 ? 's' : ''}</span>
               </div>
-
-              <div className="flex items-center justify-between border-t border-stone-300 pt-3 mb-3">
-                <div className="text-center">
-                  <div className="font-extrabold text-lg">{source.code}</div>
-                  <div className="text-xs text-stone-500">{flight.depTime}</div>
-                </div>
-                <Plane className="w-5 h-5 text-stone-400" />
-                <div className="text-center">
-                  <div className="font-extrabold text-lg">{destination.code}</div>
-                  <div className="text-xs text-stone-500">{flight.arrTime}</div>
-                </div>
-              </div>
-
-              <div className="text-sm text-stone-600 border-t border-stone-300 pt-3">
-                <div>{flight.airline} • {flight.duration} • {flight.stopsLabel}</div>
-                <div className="font-extrabold text-[#3C1318] mt-1">Passengers:</div>
-                {passengers.map((p, i) => (
-                  <div key={i} className="text-xs">{i + 1}. {p.name} (Age {p.age})</div>
-                ))}
+              <div className="text-right">
+                <div className="text-xs text-emerald-600">Amount Paid</div>
+                <div className="font-extrabold text-emerald-800">{formattedTotal}</div>
               </div>
             </div>
+
+            {passengers.map((p, idx) => (
+              <div key={idx} className="rounded-3xl overflow-hidden shadow-xl border border-stone-200">
+                {/* Colored header strip, airline-branded */}
+                <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: airlineColor }}>
+                  <div className="text-white">
+                    <div className="text-[10px] uppercase tracking-widest opacity-80">Boarding Pass</div>
+                    <div className="font-extrabold text-lg">{flight.airline}</div>
+                  </div>
+                  <div className="text-right text-white">
+                    <div className="text-[10px] uppercase tracking-widest opacity-80">Ticket</div>
+                    <div className="font-mono font-bold">{ticketNumber(idx)}</div>
+                  </div>
+                </div>
+
+                {/* Main ticket body */}
+                <div className="bg-white p-6 flex flex-col sm:flex-row gap-6">
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <div className="text-3xl font-black text-[#3C1318]">{source.code}</div>
+                        <div className="text-xs text-stone-500">{source.city}</div>
+                        <div className="text-sm font-bold text-stone-700 mt-1">{flight.depTime}</div>
+                      </div>
+                      <div className="flex-1 flex flex-col items-center px-4">
+                        <div className="text-[10px] text-stone-400 font-bold">{flight.duration}</div>
+                        <div className="w-full h-px bg-stone-300 my-1 relative">
+                          <Plane className="w-4 h-4 absolute -top-2 left-1/2 -translate-x-1/2 text-stone-400" />
+                        </div>
+                        <div className="text-[10px] text-emerald-600 font-bold">{flight.stopsLabel}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-black text-[#3C1318]">{destination.code}</div>
+                        <div className="text-xs text-stone-500">{destination.city}</div>
+                        <div className="text-sm font-bold text-stone-700 mt-1">{flight.arrTime}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 border-t border-dashed border-stone-300 pt-4">
+                      <div>
+                        <div className="text-[10px] text-stone-400 uppercase font-bold">Passenger</div>
+                        <div className="font-bold text-[#3C1318] text-sm">{p.name}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-stone-400 uppercase font-bold">Age</div>
+                        <div className="font-bold text-[#3C1318] text-sm">{p.age}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-stone-400 uppercase font-bold">Seat</div>
+                        <div className="font-bold text-[#3C1318] text-sm">{seatLetter(idx)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-stone-400 uppercase font-bold">Date</div>
+                        <div className="font-bold text-[#3C1318] text-sm">{date}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-stone-400 uppercase font-bold">Fare Paid</div>
+                        <div className="font-bold text-[#3C1318] text-sm">{formattedUnit}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-stone-400 uppercase font-bold">Booking ID</div>
+                        <div className="font-bold text-[#3C1318] text-sm">{bookingId}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Perforated stub */}
+                  <div className="sm:w-32 sm:border-l-2 sm:border-dashed sm:border-stone-300 sm:pl-6 flex sm:flex-col items-center justify-center gap-2 border-t-2 border-dashed border-stone-300 pt-4 sm:pt-0 sm:mt-0">
+                    <div className="text-[10px] text-stone-400 font-bold uppercase">Gate</div>
+                    <div className="font-black text-lg text-[#3C1318]">A{idx + 1}</div>
+                    <div className="w-full h-8 bg-[repeating-linear-gradient(90deg,#3C1318_0,#3C1318_2px,transparent_2px,transparent_5px)] opacity-70 mt-2"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
 
             <button
               onClick={downloadTicketPdf}
-              className="w-full flex items-center justify-center gap-2 bg-[#3C1318] hover:bg-[#280C10] text-white font-bold py-3 rounded-xl cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 bg-[#3C1318] hover:bg-[#280C10] text-white font-bold py-4 rounded-xl cursor-pointer shadow-lg"
             >
-              <Download className="w-4 h-4" /> Download Ticket (PDF)
+              <Download className="w-5 h-5" /> Download All Tickets (PDF)
             </button>
             <button onClick={resetAndClose} className="w-full text-stone-500 font-bold py-2 cursor-pointer">Close</button>
           </div>
