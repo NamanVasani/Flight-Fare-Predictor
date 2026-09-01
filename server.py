@@ -17,8 +17,9 @@ reg_cols = joblib.load(os.path.join(MODEL_DIR, 'reg_columns.pkl'))
 clf_cols = joblib.load(os.path.join(MODEL_DIR, 'clf_columns.pkl'))
 classes = joblib.load(os.path.join(MODEL_DIR, 'label_encoder_classes.pkl'))
 
-KNOWN_SOURCES = {"Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore"}
-KNOWN_DESTINATIONS = {"Cochin", "Delhi", "Hyderabad", "Kolkata", "Banglore"}
+# Combined supported cities (all cities that appear in training data)
+SUPPORTED_CITIES = {"Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore", "Cochin", "Hyderabad"}
+
 CITY_ALIASES = {
     "New Delhi": "Delhi",
     "Bengaluru": "Banglore",
@@ -30,8 +31,6 @@ CITY_ALIASES = {
     "MAA": "Chennai",
     "HYD": "Hyderabad",
     "BLR": "Banglore",
-    "AMD": "Delhi",
-    "Ahmedabad": "Delhi"
 }
 
 INFO_MAP = {
@@ -66,17 +65,19 @@ def validate_predict_inputs(data):
     raw_dest = get_param(data, ['destination', 'Destination', 'dest', 'dest_city', 'destCity'])
     raw_airline = get_param(data, ['airline', 'Airline', 'airline_name', 'airlineName'])
 
-    if not raw_source or not raw_dest or not raw_airline:
+    # Use explicit None checks instead of falsy checks
+    if raw_source is None or raw_dest is None or raw_airline is None:
         return False, "Missing required fields: source, destination, and airline must be specified."
 
     norm_source = CITY_ALIASES.get(str(raw_source).strip(), str(raw_source).strip())
     norm_dest = CITY_ALIASES.get(str(raw_dest).strip(), str(raw_dest).strip())
 
-    if norm_source not in KNOWN_SOURCES:
-        return False, f"Unsupported source city '{raw_source}'. Model only supports: {sorted(list(KNOWN_SOURCES))}."
+    # Use combined city set for symmetric validation
+    if norm_source not in SUPPORTED_CITIES:
+        return False, f"Unsupported source city '{raw_source}'. Supported: {sorted(list(SUPPORTED_CITIES))}."
 
-    if norm_dest not in KNOWN_DESTINATIONS:
-        return False, f"Unsupported destination city '{raw_dest}'. Model only supports: {sorted(list(KNOWN_DESTINATIONS))}."
+    if norm_dest not in SUPPORTED_CITIES:
+        return False, f"Unsupported destination city '{raw_dest}'. Supported: {sorted(list(SUPPORTED_CITIES))}."
 
     try:
         dep_hour = int(get_param(data, ['dep_hour', 'depHour', 'dep_time', 'depTime'], -99))
@@ -85,22 +86,18 @@ def validate_predict_inputs(data):
         day = int(get_param(data, ['day', 'journey_day', 'journey_date', 'journeyDay', 'journeyDate'], -99))
         month = int(get_param(data, ['month', 'journey_month', 'journeyMonth'], -99))
     except (ValueError, TypeError):
-        return False, "Numeric fields (dep_hour, duration_mins, stops, day, month) must be valid integers."
+        return False, "Numeric fields must be valid integers."
 
     if not (0 <= dep_hour <= 23):
-        return False, f"Invalid dep_hour '{dep_hour}'. Must be between 0 and 23."
-
+        return False, f"dep_hour must be 0–23, got {dep_hour}."
     if not (20 <= duration <= 1800):
-        return False, f"Invalid duration_mins '{duration}'. Must be between 20 and 1800 minutes."
-
+        return False, f"duration_mins must be 20–1800, got {duration}."
     if not (0 <= stops <= 5):
-        return False, f"Invalid stops '{stops}'. Must be between 0 and 5."
-
+        return False, f"stops must be 0–5, got {stops}."
     if not (1 <= day <= 31):
-        return False, f"Invalid day '{day}'. Must be between 1 and 31."
-
+        return False, f"day must be 1–31, got {day}."
     if not (1 <= month <= 12):
-        return False, f"Invalid month '{month}'. Must be between 1 and 12."
+        return False, f"month must be 1–12, got {month}."
 
     additional_info = get_param(data, ['additional_info', 'additionalInfo', 'Additional_Info', 'additional_Info'], 'No Info')
 
@@ -260,15 +257,36 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response).encode('utf-8'))
             
         elif self.path == '/api/search':
-            raw_source = get_param(data, ['source', 'Source', 'source_city'], 'Delhi')
-            raw_dest = get_param(data, ['destination', 'Destination', 'dest_city'], 'Cochin')
+            raw_source = get_param(data, ['source', 'Source', 'source_city'], None)
+            raw_dest = get_param(data, ['destination', 'Destination', 'dest_city'], None)
             
+            # Validate cities instead of silently falling back
+            if raw_source is None or raw_dest is None:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": "Missing source or destination."}).encode('utf-8'))
+                return
+
             norm_source = CITY_ALIASES.get(str(raw_source).strip(), str(raw_source).strip())
             norm_dest = CITY_ALIASES.get(str(raw_dest).strip(), str(raw_dest).strip())
 
-            if norm_source not in KNOWN_SOURCES or norm_dest not in KNOWN_DESTINATIONS:
-                # Default fallback supported pair if unknown city given to search
-                norm_source, norm_dest = "Delhi", "Cochin"
+            if norm_source not in SUPPORTED_CITIES:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": f"Unsupported source '{raw_source}'. Supported: {sorted(list(SUPPORTED_CITIES))}."}).encode('utf-8'))
+                return
+
+            if norm_dest not in SUPPORTED_CITIES:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": f"Unsupported destination '{raw_dest}'. Supported: {sorted(list(SUPPORTED_CITIES))}."}).encode('utf-8'))
+                return
 
             day = int(get_param(data, ['day', 'journey_day'], 15))
             month = int(get_param(data, ['month', 'journey_month'], 9))

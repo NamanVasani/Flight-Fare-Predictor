@@ -322,7 +322,7 @@ export default function BlueprintView({ source, destination }) {
           <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-3">
             <h3 className="font-extrabold text-base text-[#3C1318] flex items-center space-x-2">
               <BarChart className="w-4 h-4 text-cyan-600" />
-              <span>Trained Model Feature Importances (XGBoost / CatBoost)</span>
+              <span>Illustrative Feature Importance (Approximated)</span>
             </h3>
 
             <div className="space-y-2.5 pt-2">
@@ -338,7 +338,11 @@ export default function BlueprintView({ source, destination }) {
                 </div>
               ))}
             </div>
+            <p className="text-[10px] text-stone-400 mt-2">
+              * These values are illustrative approximations. For live importance, export from FLIGHT1.py.
+            </p>
           </div>
+
 
         </div>
 
