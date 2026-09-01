@@ -3,15 +3,20 @@ import { X, Plane, ArrowRight, CreditCard, Smartphone, Upload, CheckCircle2, Dow
 import jsPDF from 'jspdf';
 
 export default function FlightResultsModal({ isOpen, onClose, source, destination, date, flight }) {
-  const [step, setStep] = useState('passengers'); // passengers -> payment -> processing -> ticket
+  const [step, setStep] = useState('passengers');
   const [passengerCount, setPassengerCount] = useState(1);
   const [passengers, setPassengers] = useState([{ name: '', age: '', aadharName: '' }]);
-  const [paymentCategory, setPaymentCategory] = useState('card'); // card | upi
+  const [paymentCategory, setPaymentCategory] = useState('card');
   const [cardType, setCardType] = useState('credit');
   const [upiApp, setUpiApp] = useState('googlepay');
   const [bookingId] = useState(() => 'FF' + Math.floor(100000 + Math.random() * 900000));
 
   if (!isOpen || !flight) return null;
+
+  const unitPrice = flight.numericPrice || 0;
+  const totalPrice = unitPrice * passengerCount;
+  const formattedUnit = flight.formattedPrice;
+  const formattedTotal = `₹ ${Math.round(totalPrice).toLocaleString('en-IN')}`;
 
   const resetAndClose = () => {
     setStep('passengers');
@@ -47,37 +52,49 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
     setTimeout(() => setStep('ticket'), 1800);
   };
 
+  const ticketNumber = (idx) => `${bookingId}-${String(idx + 1).padStart(2, '0')}`;
+
   const downloadTicketPdf = () => {
     const doc = new jsPDF();
+    let y = 20;
+
     doc.setFontSize(18);
-    doc.text('FlyFinder — E-Ticket', 20, 20);
-    doc.setFontSize(11);
-    doc.text(`Booking ID: ${bookingId}`, 20, 32);
-    doc.text(`Date of Journey: ${date}`, 20, 40);
-    doc.line(20, 45, 190, 45);
-
-    doc.setFontSize(14);
-    doc.text(`${source.city} (${source.code})  →  ${destination.city} (${destination.code})`, 20, 55);
-
-    doc.setFontSize(11);
-    doc.text(`Airline: ${flight.airline} (${flight.code})`, 20, 65);
-    doc.text(`Departure: ${flight.depTime}`, 20, 72);
-    doc.text(`Arrival: ${flight.arrTime}`, 20, 79);
-    doc.text(`Duration: ${flight.duration}  •  ${flight.stopsLabel}`, 20, 86);
-    doc.text(`Fare (per model prediction): ${flight.formattedPrice}`, 20, 93);
-    doc.line(20, 100, 190, 100);
-
-    doc.setFontSize(12);
-    doc.text('Passengers', 20, 110);
+    doc.text('FlyFinder — E-Ticket', 20, y);
+    y += 10;
     doc.setFontSize(10);
+    doc.text(`Booking ID: ${bookingId}   Date of Journey: ${date}`, 20, y);
+    y += 6;
+    doc.line(20, y, 190, y);
+    y += 10;
+
+    doc.setFontSize(13);
+    doc.text(`${source.city} (${source.code})  ->  ${destination.city} (${destination.code})`, 20, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.text(`${flight.airline} (${flight.code})  •  ${flight.depTime} - ${flight.arrTime}  •  ${flight.duration}  •  ${flight.stopsLabel}`, 20, y);
+    y += 6;
+    doc.text(`Fare: ${formattedUnit} x ${passengers.length} passenger(s) = ${formattedTotal}`, 20, y);
+    y += 10;
+    doc.line(20, y, 190, y);
+    y += 10;
+
     passengers.forEach((p, i) => {
-      doc.text(`${i + 1}. ${p.name}  (Age: ${p.age})`, 25, 118 + i * 7);
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFontSize(12);
+      doc.text(`Ticket ${i + 1} of ${passengers.length}  —  ${ticketNumber(i)}`, 20, y);
+      y += 7;
+      doc.setFontSize(10);
+      doc.text(`Passenger: ${p.name}   Age: ${p.age}`, 25, y);
+      y += 6;
+      doc.text(`Fare for this ticket: ${formattedUnit}`, 25, y);
+      y += 10;
     });
 
-    const footerY = 118 + passengers.length * 7 + 12;
     doc.setFontSize(9);
-    doc.text('This is a demo ticket generated for a student/portfolio project.', 20, footerY);
-    doc.text('Not valid for actual travel.', 20, footerY + 6);
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.text('This is a demo ticket generated for a student/portfolio project.', 20, y);
+    y += 6;
+    doc.text('Not valid for actual travel.', 20, y);
 
     doc.save(`FlyFinder-Ticket-${bookingId}.pdf`);
   };
@@ -93,7 +110,6 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
           <X className="w-5 h-5" />
         </button>
 
-        {/* Flight summary header, shown on every step */}
         <div className="mb-6">
           <div className="text-xs text-stone-500 font-medium mb-1">{date}</div>
           <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#3C1318] mb-1 flex items-center gap-2">
@@ -105,10 +121,9 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
             <Plane className="w-4 h-4 text-stone-400" />
             <span>{flight.airline} • {flight.depTime} → {flight.arrTime} • {flight.duration} • {flight.stopsLabel}</span>
           </div>
-          <div className="text-lg font-extrabold text-[#3C1318] mt-1">{flight.formattedPrice} <span className="text-xs font-medium text-stone-500">per passenger (model predicted)</span></div>
+          <div className="text-sm font-bold text-stone-500 mt-1">{formattedUnit} per passenger</div>
         </div>
 
-        {/* STEP 1: PASSENGER DETAILS */}
         {step === 'passengers' && (
           <div className="space-y-5">
             <h3 className="text-sm font-extrabold uppercase tracking-wider text-stone-500">Passenger Details</h3>
@@ -159,6 +174,11 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
               Demo project: uploaded files are never sent or saved anywhere — only the filename is shown here.
             </div>
 
+            <div className="flex justify-between items-center border-t border-stone-200 pt-4">
+              <span className="text-sm font-bold text-stone-600">Total ({passengerCount} × {formattedUnit})</span>
+              <span className="text-xl font-extrabold text-[#3C1318]">{formattedTotal}</span>
+            </div>
+
             <button
               onClick={handleConfirmPassengers}
               disabled={!allPassengersValid}
@@ -169,7 +189,6 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
           </div>
         )}
 
-        {/* STEP 2: PAYMENT */}
         {step === 'payment' && (
           <div className="space-y-5">
             <h3 className="text-sm font-extrabold uppercase tracking-wider text-stone-500">Payment (Demo — no real charges)</h3>
@@ -213,67 +232,76 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
               </div>
             )}
 
+            <div className="flex justify-between items-center border-t border-stone-200 pt-4">
+              <span className="text-sm font-bold text-stone-600">Total ({passengerCount} × {formattedUnit})</span>
+              <span className="text-xl font-extrabold text-[#3C1318]">{formattedTotal}</span>
+            </div>
+
             <div className="flex gap-3">
               <button onClick={() => setStep('passengers')} className="flex-1 border border-stone-300 text-stone-600 font-bold py-3 rounded-xl cursor-pointer">Back</button>
-              <button onClick={handlePay} className="flex-1 bg-[#3C1318] hover:bg-[#280C10] text-white font-bold py-3 rounded-xl cursor-pointer">Pay {flight.formattedPrice}</button>
+              <button onClick={handlePay} className="flex-1 bg-[#3C1318] hover:bg-[#280C10] text-white font-bold py-3 rounded-xl cursor-pointer">Pay {formattedTotal}</button>
             </div>
           </div>
         )}
 
-        {/* STEP 3: PROCESSING */}
         {step === 'processing' && (
           <div className="flex flex-col items-center justify-center py-16 space-y-4">
             <Loader2 className="w-10 h-10 animate-spin text-[#3C1318]" />
-            <div className="font-bold text-stone-600">Processing payment…</div>
+            <div className="font-bold text-stone-600">Processing payment of {formattedTotal}…</div>
           </div>
         )}
 
-        {/* STEP 4: TICKET */}
         {step === 'ticket' && (
           <div className="space-y-5">
-            <div className="flex items-center gap-2 text-emerald-600">
-              <CheckCircle2 className="w-6 h-6" />
-              <span className="font-extrabold">Booking Confirmed</span>
-            </div>
-
-            <div className="border-2 border-dashed border-stone-300 rounded-2xl p-5 bg-[#FAF7F2]">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <div className="text-xs text-stone-500 font-medium">Booking ID</div>
-                  <div className="font-extrabold text-[#3C1318]">{bookingId}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-stone-500 font-medium">Date of Journey</div>
-                  <div className="font-extrabold text-[#3C1318]">{date}</div>
-                </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-600">
+                <CheckCircle2 className="w-6 h-6" />
+                <span className="font-extrabold">Booking Confirmed — {passengers.length} Ticket{passengers.length > 1 ? 's' : ''}</span>
               </div>
-
-              <div className="flex items-center justify-between border-t border-stone-300 pt-3 mb-3">
-                <div className="text-center">
-                  <div className="font-extrabold text-lg">{source.code}</div>
-                  <div className="text-xs text-stone-500">{flight.depTime}</div>
-                </div>
-                <Plane className="w-5 h-5 text-stone-400" />
-                <div className="text-center">
-                  <div className="font-extrabold text-lg">{destination.code}</div>
-                  <div className="text-xs text-stone-500">{flight.arrTime}</div>
-                </div>
-              </div>
-
-              <div className="text-sm text-stone-600 border-t border-stone-300 pt-3">
-                <div>{flight.airline} • {flight.duration} • {flight.stopsLabel}</div>
-                <div className="font-extrabold text-[#3C1318] mt-1">Passengers:</div>
-                {passengers.map((p, i) => (
-                  <div key={i} className="text-xs">{i + 1}. {p.name} (Age {p.age})</div>
-                ))}
+              <div className="text-right">
+                <div className="text-xs text-stone-500">Amount Paid</div>
+                <div className="font-extrabold text-[#3C1318]">{formattedTotal}</div>
               </div>
             </div>
+
+            {passengers.map((p, idx) => (
+              <div key={idx} className="border-2 border-dashed border-stone-300 rounded-2xl p-5 bg-[#FAF7F2]">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="text-xs text-stone-500 font-medium">Ticket No.</div>
+                    <div className="font-extrabold text-[#3C1318]">{ticketNumber(idx)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-stone-500 font-medium">Date of Journey</div>
+                    <div className="font-extrabold text-[#3C1318]">{date}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-stone-300 pt-3 mb-3">
+                  <div className="text-center">
+                    <div className="font-extrabold text-lg">{source.code}</div>
+                    <div className="text-xs text-stone-500">{flight.depTime}</div>
+                  </div>
+                  <Plane className="w-5 h-5 text-stone-400" />
+                  <div className="text-center">
+                    <div className="font-extrabold text-lg">{destination.code}</div>
+                    <div className="text-xs text-stone-500">{flight.arrTime}</div>
+                  </div>
+                </div>
+
+                <div className="text-sm text-stone-600 border-t border-stone-300 pt-3">
+                  <div>{flight.airline} • {flight.duration} • {flight.stopsLabel}</div>
+                  <div className="font-extrabold text-[#3C1318] mt-2">{p.name} <span className="font-medium text-stone-500">(Age {p.age})</span></div>
+                  <div className="text-xs text-stone-500 mt-1">Fare: {formattedUnit}</div>
+                </div>
+              </div>
+            ))}
 
             <button
               onClick={downloadTicketPdf}
               className="w-full flex items-center justify-center gap-2 bg-[#3C1318] hover:bg-[#280C10] text-white font-bold py-3 rounded-xl cursor-pointer"
             >
-              <Download className="w-4 h-4" /> Download Ticket (PDF)
+              <Download className="w-4 h-4" /> Download All Tickets (PDF)
             </button>
             <button onClick={resetAndClose} className="w-full text-stone-500 font-bold py-2 cursor-pointer">Close</button>
           </div>
