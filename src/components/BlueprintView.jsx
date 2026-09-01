@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, CheckCircle2, Sliders, Play, RefreshCw, BarChart, Layers } from 'lucide-react';
+import { Cpu, CheckCircle2, Sliders, Play, RefreshCw, BarChart, Layers, AlertTriangle } from 'lucide-react';
 import { AIRPORTS } from '../data/airports';
+
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? "http://localhost:5001"
+  : "https://flight-fare-predictor-ggn7.onrender.com";
 
 export default function BlueprintView({ source, destination }) {
   const [selectedSource, setSelectedSource] = useState(source.city);
@@ -15,22 +19,21 @@ export default function BlueprintView({ source, destination }) {
   const [loading, setLoading] = useState(false);
   const [apiOnline, setApiOnline] = useState(true);
 
-  // Check API health or compute client fallback ML prediction
   const runPrediction = async () => {
     setLoading(true);
     const day = parseInt(date.split('-')[2] || '15', 10);
     const month = parseInt(date.split('-')[1] || '9', 10);
 
     try {
-      const res = await fetch('http://localhost:5001/api/predict', {
+      const res = await fetch(`${API_BASE}/api/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           source: selectedSource,
           destination: selectedDest,
           airline: selectedAirline,
-          depHour,
-          durationMins,
+          dep_hour: depHour,
+          duration_mins: durationMins,
           stops,
           day,
           month
@@ -39,16 +42,18 @@ export default function BlueprintView({ source, destination }) {
 
       if (res.ok) {
         const data = await res.json();
-        setPrediction(data);
-        setApiOnline(true);
-        setLoading(false);
-        return;
+        if (data.success) {
+          setPrediction({ ...data, isOfflineFallback: false });
+          setApiOnline(true);
+          setLoading(false);
+          return;
+        }
       }
     } catch (err) {
       setApiOnline(false);
     }
 
-    // Client ML Math approximation based on FLIGHT1.py weights
+    // Client Heuristic fallback when backend is offline
     setTimeout(() => {
       const baseFare = 3200 + (durationMins * 18.5) + (stops * 1400);
       const airlineMultipliers = {
@@ -77,6 +82,7 @@ export default function BlueprintView({ source, destination }) {
         catboost_reg_price: catPrice,
         ensemble_price: ensemblePrice,
         predicted_tier: tier,
+        isOfflineFallback: true,
         tier_probabilities: {
           Low: tier === 'Low' ? 0.88 : 0.04,
           Medium: tier === 'Medium' ? 0.85 : 0.10,
@@ -85,7 +91,7 @@ export default function BlueprintView({ source, destination }) {
         }
       });
       setLoading(false);
-    }, 400);
+    }, 300);
   };
 
   useEffect(() => {
@@ -122,10 +128,19 @@ export default function BlueprintView({ source, destination }) {
         <div className="flex items-center space-x-3 bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700">
           <span className={`w-3 h-3 rounded-full ${apiOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
           <span className="text-xs font-mono text-slate-300">
-            {apiOnline ? 'PYTHON SERVER ONLINE (PORT 5001)' : 'STANDALONE ML ENGINE (IN-BROWSER)'}
+            {apiOnline ? 'PYTHON SERVER ONLINE (LIVE ENSEMBLE)' : 'OFFLINE HEURISTIC ESTIMATE (MODEL UNREACHABLE)'}
           </span>
         </div>
       </div>
+
+      {prediction?.isOfflineFallback && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl p-4 flex items-center space-x-3 text-sm">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+          <span>
+            <strong>Offline Mode Notice:</strong> The ML API backend is unreachable. Displaying standalone heuristic estimates. Connect the Python server to run live model inference.
+          </span>
+        </div>
+      )}
 
       {/* Grid: Predictor Control vs Model Metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -207,7 +222,7 @@ export default function BlueprintView({ source, destination }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-extrabold text-stone-500 uppercase block mb-1">Total Stops</label>
+                <label className="text-xs font-extrabold text-stone-500 uppercase block mb-1">Stops: {stops}</label>
                 <select
                   value={stops}
                   onChange={(e) => setStops(parseInt(e.target.value, 10))}
@@ -215,17 +230,17 @@ export default function BlueprintView({ source, destination }) {
                 >
                   <option value={0}>0 (Non-stop)</option>
                   <option value={1}>1 Stop</option>
-                  <option value={2}>2 Stops</option>
+                  <option value={2}>2+ Stops</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-xs font-extrabold text-stone-500 uppercase block mb-1">Date</label>
+                <label className="text-xs font-extrabold text-stone-500 uppercase block mb-1">Journey Date</label>
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-[#FAF7F2] border border-stone-200 rounded-xl p-2 text-xs font-bold text-[#3C1318]"
+                  className="w-full bg-[#FAF7F2] border border-stone-200 rounded-xl p-2 text-sm font-bold text-[#3C1318]"
                 />
               </div>
             </div>
@@ -233,20 +248,26 @@ export default function BlueprintView({ source, destination }) {
             <button
               onClick={runPrediction}
               disabled={loading}
-              className="w-full bg-[#3C1318] hover:bg-[#280C10] text-white py-3 rounded-xl font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-sm"
+              className="w-full bg-[#3C1318] hover:bg-[#280C10] text-white py-3 rounded-2xl font-bold flex items-center justify-center space-x-2 transition shadow-md disabled:opacity-50"
             >
-              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-              <span>Re-run Pipeline Inference</span>
+              {loading ? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>Run Model Inference</span>
+                </>
+              )}
             </button>
           </div>
         </div>
 
-        {/* Right: Real-time Model Outputs & Feature Importance */}
+        {/* Right: Model Predictions & Feature Importance */}
         <div className="lg:col-span-7 space-y-6">
           
           {/* Prediction Outputs */}
           <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-4">
-            <h3 className="font-extrabold text-lg text-[#3C1318] pb-2 border-b border-stone-200 flex items-center justify-between">
+            <h3 className="font-extrabold text-lg text-[#3C1318] flex items-center justify-between">
               <span>Live Ensemble Predictions</span>
               {prediction && (
                 <span className="text-xs font-mono bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full">
@@ -301,7 +322,7 @@ export default function BlueprintView({ source, destination }) {
           <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-3">
             <h3 className="font-extrabold text-base text-[#3C1318] flex items-center space-x-2">
               <BarChart className="w-4 h-4 text-cyan-600" />
-              <span>Model Feature Importance Analysis</span>
+              <span>Trained Model Feature Importances (XGBoost / CatBoost)</span>
             </h3>
 
             <div className="space-y-2.5 pt-2">

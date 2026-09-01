@@ -17,6 +17,23 @@ reg_cols = joblib.load(os.path.join(MODEL_DIR, 'reg_columns.pkl'))
 clf_cols = joblib.load(os.path.join(MODEL_DIR, 'clf_columns.pkl'))
 classes = joblib.load(os.path.join(MODEL_DIR, 'label_encoder_classes.pkl'))
 
+KNOWN_SOURCES = {"Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore"}
+KNOWN_DESTINATIONS = {"Cochin", "Delhi", "Hyderabad", "Kolkata", "Banglore"}
+CITY_ALIASES = {
+    "New Delhi": "Delhi",
+    "Bengaluru": "Banglore",
+    "Bangalore": "Banglore",
+    "DEL": "Delhi",
+    "COK": "Cochin",
+    "BOM": "Mumbai",
+    "CCU": "Kolkata",
+    "MAA": "Chennai",
+    "HYD": "Hyderabad",
+    "BLR": "Banglore",
+    "AMD": "Delhi",
+    "Ahmedabad": "Delhi"
+}
+
 INFO_MAP = {
     'no info': 'No Info',
     'no_info': 'No Info',
@@ -38,11 +55,66 @@ INFO_MAP = {
     'business_class': 'Business class',
 }
 
-def get_param(data, keys, default):
+def get_param(data, keys, default=None):
     for k in keys:
-        if k in data and data[k] is not None:
+        if k in data and data[k] is not None and data[k] != "":
             return data[k]
     return default
+
+def validate_predict_inputs(data):
+    raw_source = get_param(data, ['source', 'Source', 'source_city', 'sourceCity'])
+    raw_dest = get_param(data, ['destination', 'Destination', 'dest', 'dest_city', 'destCity'])
+    raw_airline = get_param(data, ['airline', 'Airline', 'airline_name', 'airlineName'])
+
+    if not raw_source or not raw_dest or not raw_airline:
+        return False, "Missing required fields: source, destination, and airline must be specified."
+
+    norm_source = CITY_ALIASES.get(str(raw_source).strip(), str(raw_source).strip())
+    norm_dest = CITY_ALIASES.get(str(raw_dest).strip(), str(raw_dest).strip())
+
+    if norm_source not in KNOWN_SOURCES:
+        return False, f"Unsupported source city '{raw_source}'. Model only supports: {sorted(list(KNOWN_SOURCES))}."
+
+    if norm_dest not in KNOWN_DESTINATIONS:
+        return False, f"Unsupported destination city '{raw_dest}'. Model only supports: {sorted(list(KNOWN_DESTINATIONS))}."
+
+    try:
+        dep_hour = int(get_param(data, ['dep_hour', 'depHour', 'dep_time', 'depTime'], -99))
+        duration = int(get_param(data, ['duration_mins', 'durationMins', 'duration', 'duration_minutes', 'durationMinutes'], -99))
+        stops = int(get_param(data, ['stops', 'total_stops', 'totalStops', 'stop_num', 'stopNum'], -99))
+        day = int(get_param(data, ['day', 'journey_day', 'journey_date', 'journeyDay', 'journeyDate'], -99))
+        month = int(get_param(data, ['month', 'journey_month', 'journeyMonth'], -99))
+    except (ValueError, TypeError):
+        return False, "Numeric fields (dep_hour, duration_mins, stops, day, month) must be valid integers."
+
+    if not (0 <= dep_hour <= 23):
+        return False, f"Invalid dep_hour '{dep_hour}'. Must be between 0 and 23."
+
+    if not (20 <= duration <= 1800):
+        return False, f"Invalid duration_mins '{duration}'. Must be between 20 and 1800 minutes."
+
+    if not (0 <= stops <= 5):
+        return False, f"Invalid stops '{stops}'. Must be between 0 and 5."
+
+    if not (1 <= day <= 31):
+        return False, f"Invalid day '{day}'. Must be between 1 and 31."
+
+    if not (1 <= month <= 12):
+        return False, f"Invalid month '{month}'. Must be between 1 and 12."
+
+    additional_info = get_param(data, ['additional_info', 'additionalInfo', 'Additional_Info', 'additional_Info'], 'No Info')
+
+    return True, {
+        "source": norm_source,
+        "destination": norm_dest,
+        "airline": str(raw_airline).strip(),
+        "dep_hour": dep_hour,
+        "duration": duration,
+        "stops": stops,
+        "day": day,
+        "month": month,
+        "additional_info": str(additional_info).strip()
+    }
 
 def prepare_input(source_name, dest_name, airline_name, dep_hour, duration_mins, total_stops, journey_day, journey_month, additional_info="No Info"):
     if source_name == "New Delhi": source_name = "Delhi"
@@ -134,18 +206,21 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
             data = {}
 
         if self.path == '/api/predict':
-            # Complete key alias support for Issue #11 & #9
-            source = get_param(data, ['source', 'Source', 'source_city', 'sourceCity'], 'Delhi')
-            dest = get_param(data, ['destination', 'Destination', 'dest', 'dest_city', 'destCity'], 'Cochin')
-            airline = get_param(data, ['airline', 'Airline', 'airline_name', 'airlineName'], 'IndiGo')
-            dep_hour = int(get_param(data, ['dep_hour', 'depHour', 'dep_time', 'depTime'], 6))
-            duration = int(get_param(data, ['duration_mins', 'durationMins', 'duration', 'duration_minutes', 'durationMinutes'], 110))
-            stops = int(get_param(data, ['stops', 'total_stops', 'totalStops', 'stop_num', 'stopNum'], 0))
-            day = int(get_param(data, ['day', 'journey_day', 'journey_date', 'journeyDay', 'journeyDate'], 15))
-            month = int(get_param(data, ['month', 'journey_month', 'journeyMonth'], 9))
-            additional_info = get_param(data, ['additional_info', 'additionalInfo', 'Additional_Info', 'additional_Info'], 'No Info')
+            is_valid, result = validate_predict_inputs(data)
+            if not is_valid:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": result}).encode('utf-8'))
+                return
 
-            df = prepare_input(source, dest, airline, dep_hour, duration, stops, day, month, additional_info)
+            params = result
+            df = prepare_input(
+                params["source"], params["destination"], params["airline"],
+                params["dep_hour"], params["duration"], params["stops"],
+                params["day"], params["month"], params["additional_info"]
+            )
 
             pred_xgb_log = float(xgb_reg.predict(df)[0])
             pred_cat_log = float(cat_reg.predict(df)[0])
@@ -166,15 +241,15 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
                 "predicted_tier": predicted_tier,
                 "tier_probabilities": prob_dict,
                 "features_used": {
-                    "source": source,
-                    "destination": dest,
-                    "airline": airline,
-                    "dep_hour": dep_hour,
-                    "duration_mins": duration,
-                    "stops": stops,
-                    "day": day,
-                    "month": month,
-                    "additional_info": str(additional_info)
+                    "source": params["source"],
+                    "destination": params["destination"],
+                    "airline": params["airline"],
+                    "dep_hour": params["dep_hour"],
+                    "duration_mins": params["duration"],
+                    "stops": params["stops"],
+                    "day": params["day"],
+                    "month": params["month"],
+                    "additional_info": params["additional_info"]
                 }
             }
 
@@ -185,8 +260,16 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response).encode('utf-8'))
             
         elif self.path == '/api/search':
-            source = get_param(data, ['source', 'Source', 'source_city'], 'Ahmedabad')
-            dest = get_param(data, ['destination', 'Destination', 'dest_city'], 'Delhi')
+            raw_source = get_param(data, ['source', 'Source', 'source_city'], 'Delhi')
+            raw_dest = get_param(data, ['destination', 'Destination', 'dest_city'], 'Cochin')
+            
+            norm_source = CITY_ALIASES.get(str(raw_source).strip(), str(raw_source).strip())
+            norm_dest = CITY_ALIASES.get(str(raw_dest).strip(), str(raw_dest).strip())
+
+            if norm_source not in KNOWN_SOURCES or norm_dest not in KNOWN_DESTINATIONS:
+                # Default fallback supported pair if unknown city given to search
+                norm_source, norm_dest = "Delhi", "Cochin"
+
             day = int(get_param(data, ['day', 'journey_day'], 15))
             month = int(get_param(data, ['month', 'journey_month'], 9))
 
@@ -203,7 +286,7 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
 
             results = []
             for item in airlines_info:
-                df = prepare_input(source, dest, item["name"], item["dep_h"], item["dur"], item["stop_num"], day, month, item.get("info", "No Info"))
+                df = prepare_input(norm_source, norm_dest, item["name"], item["dep_h"], item["dur"], item["stop_num"], day, month, item.get("info", "No Info"))
                 pred_xgb = float(xgb_reg.predict(df)[0])
                 pred_cat = float(cat_reg.predict(df)[0])
                 ensemble_price = float(np.expm1((pred_xgb + pred_cat) / 2))

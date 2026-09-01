@@ -9,17 +9,6 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
 // Only these cities exist in the trained dataset — anything else is flagged as unsupported
 const KNOWN_CITIES = new Set(["Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore", "Cochin", "Hyderabad"]);
 
-const FLIGHT_TEMPLATES = [
-  { id: '6e-1', code: '6E', airline: 'IndiGo', logoBg: '#0B2545', depHour: 6,  duration: 110, stops: 0 },
-  { id: 'sg-1', code: 'SG', airline: 'SpiceJet', logoBg: '#D90429', depHour: 21, duration: 115, stops: 0 },
-  { id: 'uk-1', code: 'UK', airline: 'Vistara', logoBg: '#4A154B', depHour: 7,  duration: 110, stops: 0 },
-  { id: 'ai-1', code: 'AI', airline: 'Air India', logoBg: '#E63946', depHour: 11, duration: 125, stops: 0 },
-  { id: 'op-1', code: 'OP', airline: 'Akasa Air', logoBg: '#FF5A16', depHour: 15, duration: 120, stops: 0 },
-  { id: 'g8-1', code: 'G8', airline: 'Go First', logoBg: '#0070BA', depHour: 20, duration: 120, stops: 0 },
-  { id: 'ai-2', code: 'AI', airline: 'Air India', logoBg: '#E63946', depHour: 7,  duration: 120, stops: 1 },
-  { id: 'uk-2', code: 'UK', airline: 'Vistara', logoBg: '#451343', depHour: 11, duration: 110, stops: 1 },
-];
-
 export async function predictCategorizedFlightFares(source, destination, date) {
   let sourceCity = source.city === "Bengaluru" ? "Banglore" : source.city;
   let destCity = destination.city === "Bengaluru" ? "Banglore" : destination.city;
@@ -34,47 +23,44 @@ export async function predictCategorizedFlightFares(source, destination, date) {
   const month = isValidDate ? parsedDate.getMonth() + 1 : 9;
 
   try {
-    const results = await Promise.all(
-      FLIGHT_TEMPLATES.map(async (flight) => {
-        const res = await fetch(`${API_BASE}/api/predict`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            source: sourceCity,
-            destination: destCity,
-            airline: flight.airline,
-            depHour: flight.depHour,
-            durationMins: flight.duration,
-            stops: flight.stops,
-            day, month,
-          }),
-        });
+    const res = await fetch(`${API_BASE}/api/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: sourceCity,
+        destination: destCity,
+        day,
+        month,
+      }),
+    });
 
-        if (!res.ok) throw new Error("Prediction API call failed");
-        const data = await res.json();
-        const arrHour = (flight.depHour + Math.floor(flight.duration / 60)) % 24;
+    if (!res.ok) throw new Error("Search API call failed");
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.flights)) throw new Error("Invalid API response format");
 
-        return {
-          ...flight,
-          numericPrice: data.ensemble_price,
-          formattedPrice: `₹ ${Math.round(data.ensemble_price).toLocaleString('en-IN')}`,
-          tier: data.predicted_tier || (flight.stops > 0 ? "High" : (flight.code === '6E' || flight.code === 'SG' ? "Low" : "Medium")),
-          depTime: formatHour(flight.depHour),
-          arrTime: formatHour(arrHour),
-          duration: `${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m`,
-          stopsLabel: flight.stops === 0 ? "Non-stop" : `${flight.stops} stop${flight.stops > 1 ? 's' : ''}`,
-        };
-      })
-    );
+    const flights = data.flights.map(f => ({
+      id: f.id,
+      code: f.logo,
+      airline: f.airline,
+      depTime: f.depTime,
+      arrTime: f.arrTime,
+      duration: f.duration,
+      stopsLabel: f.stops,
+      formattedPrice: f.price,
+      numericPrice: f.numericPrice,
+      tier: f.predictedTier || f.tier,
+      isOfflineFallback: false,
+    }));
 
     return {
-      lowTier: results.filter(f => f.tier === "Low"),
-      mediumTier: results.filter(f => f.tier === "Medium"),
-      highTier: results.filter(f => f.tier === "High" || f.tier === "Premium"),
+      lowTier: flights.filter(f => f.tier === "Low"),
+      mediumTier: flights.filter(f => f.tier === "Medium"),
+      highTier: flights.filter(f => f.tier === "High" || f.tier === "Premium"),
       unsupportedRoute: false,
+      isOfflineFallback: false
     };
   } catch (err) {
-    console.warn("Backend API unavailable, falling back to cached model predictions:", err);
+    console.warn("Backend API unavailable, displaying offline estimate:", err);
     return fallbackCategorizedFares(source, destination);
   }
 }
@@ -105,7 +91,7 @@ export function predictFlightFares(source, destination, dateString) {
       stops: dist > 3500 ? "1 Stop" : "Non-stop",
       predictedFare: `₹ ${finalFareRaw.toLocaleString('en-IN')}`,
       numericFare: finalFareRaw,
-      confidence: "95.4%",
+      confidence: "Heuristic Estimate",
       trend: slot.trend,
       aircraft: "Airbus A320neo"
     };
@@ -114,36 +100,31 @@ export function predictFlightFares(source, destination, dateString) {
   return {
     flights,
     recommendation: {
-      status: "BEST TIME TO BOOK",
-      badgeBg: "bg-emerald-100 text-emerald-800 border border-emerald-300",
-      message: "Optimal booking window active.",
-      confidence: "95.4%"
+      status: "HEURISTIC ESTIMATE (OFFLINE)",
+      badgeBg: "bg-amber-100 text-amber-800 border border-amber-300",
+      message: "Distance-based estimate active (Model offline).",
+      confidence: "Distance Heuristic"
     },
-    distanceKm: dist
+    distanceKm: dist,
+    isHeuristicEstimate: true
   };
-}
-
-function formatHour(h) {
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${String(h12).padStart(2, '0')}:00 ${period}`;
 }
 
 function fallbackCategorizedFares(source, destination) {
   const lowTier = [
-    { id: '6e-1', code: '6E', logoBg: '#0B2545', airline: 'IndiGo', depTime: '06:20 AM', arrTime: '08:10 AM', duration: '1h 50m', stopsLabel: 'Non-stop', formattedPrice: '₹ 4,290' },
-    { id: 'sg-1', code: 'SG', logoBg: '#D90429', airline: 'SpiceJet', depTime: '09:15 PM', arrTime: '11:10 PM', duration: '1h 55m', stopsLabel: 'Non-stop', formattedPrice: '₹ 4,800' }
+    { id: '6e-1', code: '6E', logoBg: '#0B2545', airline: 'IndiGo', depTime: '06:20 AM', arrTime: '08:10 AM', duration: '1h 50m', stopsLabel: 'Non-stop', formattedPrice: '₹ 4,290', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
+    { id: 'sg-1', code: 'SG', logoBg: '#D90429', airline: 'SpiceJet', depTime: '09:15 PM', arrTime: '11:10 PM', duration: '1h 55m', stopsLabel: 'Non-stop', formattedPrice: '₹ 4,800', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' }
   ];
   const mediumTier = [
-    { id: 'uk-1', code: 'UK', logoBg: '#4A154B', airline: 'Vistara', depTime: '07:30 AM', arrTime: '09:20 AM', duration: '1h 50m', stopsLabel: 'Non-stop', formattedPrice: '₹ 8,650' },
-    { id: 'ai-1', code: 'AI', logoBg: '#E63946', airline: 'Air India', depTime: '11:00 AM', arrTime: '01:05 PM', duration: '2h 05m', stopsLabel: 'Non-stop', formattedPrice: '₹ 9,240' },
-    { id: 'op-1', code: 'OP', logoBg: '#FF5A16', airline: 'Akasa Air', depTime: '03:20 PM', arrTime: '05:20 PM', duration: '2h 00m', stopsLabel: 'Non-stop', formattedPrice: '₹ 11,500' },
-    { id: 'g8-1', code: 'G8', logoBg: '#0070BA', airline: 'Go First', depTime: '08:45 PM', arrTime: '10:45 PM', duration: '2h 00m', stopsLabel: 'Non-stop', formattedPrice: '₹ 12,780' }
+    { id: 'uk-1', code: 'UK', logoBg: '#4A154B', airline: 'Vistara', depTime: '07:30 AM', arrTime: '12:40 PM', duration: '5h 10m', stopsLabel: '1 Stop', formattedPrice: '₹ 8,650', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
+    { id: 'ai-1', code: 'AI', logoBg: '#E63946', airline: 'Air India', depTime: '11:00 AM', arrTime: '04:30 PM', duration: '5h 30m', stopsLabel: '1 Stop', formattedPrice: '₹ 9,240', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
+    { id: 'op-1', code: 'OP', logoBg: '#FF5A16', airline: 'Akasa Air', depTime: '03:20 PM', arrTime: '08:10 PM', duration: '4h 50m', stopsLabel: '1 Stop', formattedPrice: '₹ 11,500', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
+    { id: 'g8-1', code: 'G8', logoBg: '#0070BA', airline: 'Go First', depTime: '08:45 PM', arrTime: '02:25 AM', duration: '5h 40m', stopsLabel: '1 Stop', formattedPrice: '₹ 12,780', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' }
   ];
   const highTier = [
-    { id: 'ai-2', code: 'AI', logoBg: '#E63946', airline: 'Air India', depTime: '06:55 AM', arrTime: '08:55 AM', duration: '2h 00m', stopsLabel: 'Non-stop', formattedPrice: '₹ 19,850' },
-    { id: 'uk-2', code: 'UK', logoBg: '#451343', airline: 'Vistara', depTime: '10:40 AM', arrTime: '12:30 PM', duration: '1h 50m', stopsLabel: 'Non-stop', formattedPrice: '₹ 21,600' }
+    { id: 'ai-2', code: 'AI', logoBg: '#E63946', airline: 'Air India', depTime: '06:55 AM', arrTime: '06:15 PM', duration: '11h 20m', stopsLabel: '2 Stops', formattedPrice: '₹ 19,850', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
+    { id: 'uk-2', code: 'UK', logoBg: '#451343', airline: 'Vistara', depTime: '10:40 AM', arrTime: '09:30 PM', duration: '10h 50m', stopsLabel: '2 Stops', formattedPrice: '₹ 21,600', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' }
   ];
 
-  return { lowTier, mediumTier, highTier, unsupportedRoute: false };
+  return { lowTier, mediumTier, highTier, unsupportedRoute: false, isOfflineFallback: true, offlineNotice: "Offline Estimate — Model Unavailable" };
 }
