@@ -7,7 +7,7 @@ export default function ConstellationView({ source, destination, onEnterIntellig
     <div className="w-full flex-grow flex flex-col justify-between relative overflow-hidden bg-[#FAF7F2] min-h-[calc(100dvh-100px)] animate-fade-in">
       
       {/* Main Orbital Content Grid (+80% size) */}
-      <div className="max-w-[1920px] w-full mx-auto px-6 sm:px-12 lg:px-20 py-10 my-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center relative z-20">
+      <div className="max-w-[1920px] w-full mx-auto px-6 sm:px-12 lg:px-20 py-10 my-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-center relative z-20">
         
         {/* Left Column (Headline & Action Buttons - Shifted 10-15% Left) */}
         <div className="lg:col-span-6 space-y-8 max-w-3xl lg:-ml-12 xl:-ml-20 z-30">

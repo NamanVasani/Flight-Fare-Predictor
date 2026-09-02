@@ -59,7 +59,7 @@ export default function App() {
 
         {activeTheme === 'spinner' && (
           <div className="w-full px-6 sm:px-12 lg:px-20 flex-grow flex flex-col justify-between max-w-[1920px] mx-auto py-8 animate-fade-in">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center w-full min-h-[calc(100vh-220px)]">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center w-full min-h-[calc(100vh-220px)]">
               <div className="lg:col-span-6 flex flex-col justify-center my-auto lg:-ml-20 xl:-ml-32 z-30">
                 <HeroSection
                   source={source}
