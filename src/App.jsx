@@ -73,7 +73,7 @@ export default function App() {
                 />
               </div>
               <div className="lg:col-span-6 flex items-center justify-end relative overflow-visible my-auto">
-                <Globe3D source={source} destination={destination} sizeScale={1.6} />
+                <Globe3D source={source} destination={destination} sizeScale={1.4} />
               </div>
             </div>
           </div>
