@@ -78,7 +78,7 @@ def validate_predict_inputs(data):
     raw_airline = get_param(data, ['airline', 'Airline', 'airline_name', 'airlineName'])
 
     # Use explicit None checks instead of falsy checks
-    if raw_source is None or raw_dest is None or raw_airline is None:
+    if not raw_source or not raw_dest or not raw_airline:
         return False, "Missing required fields: source, destination, and airline must be specified."
 
     norm_source = normalize_city(raw_source)
@@ -280,7 +280,7 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
             raw_dest = get_param(data, ['destination', 'Destination', 'dest_city'], None)
             
             # Validate cities instead of silently falling back
-            if raw_source is None or raw_dest is None:
+            if not raw_source or not raw_dest:
                 self.send_response(400)
                 self.send_header('Content-Type', 'application/json')
                 self._send_cors_headers()
