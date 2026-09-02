@@ -3,7 +3,6 @@ import Navbar from './components/Navbar';
 import CoherentView from './components/CoherentView';
 import HeroSection from './components/HeroSection';
 import Globe3D from './components/Globe3D';
-import HowItWorks from './components/HowItWorks';
 import ConstellationView from './components/ConstellationView';
 import BlueprintView from './components/BlueprintView';
 import FlightResultsModal from './components/FlightResultsModal';
@@ -78,9 +77,6 @@ export default function App() {
               <div className="lg:col-span-6 flex items-center justify-end relative overflow-visible my-auto">
                 <Globe3D source={source} destination={destination} sizeScale={1.3} />
               </div>
-            </div>
-            <div className="mt-8 border-t border-stone-200/60 pt-6">
-              <HowItWorks />
             </div>
           </div>
         )}
