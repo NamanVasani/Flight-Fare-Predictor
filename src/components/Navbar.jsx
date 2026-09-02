@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plane, UserCircle2, LogOut } from 'lucide-react';
 
-export default function Navbar({ onGoHome, onOpenAccountModal, onOpenLoginModal, onOpenBlueprint, user, onLogout }) {
+export default function Navbar({ onGoHome, onOpenAccountModal, onOpenLoginModal, user, onLogout }) {
   return (
     <header className="w-full bg-[#FAF7F2] py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-12 xl:px-20 flex items-center justify-between gap-3 z-40 relative max-w-[1920px] mx-auto border-b border-stone-200/50">
       
@@ -28,14 +28,6 @@ export default function Navbar({ onGoHome, onOpenAccountModal, onOpenLoginModal,
           <a href="#support" className="hover:opacity-75 transition-opacity">
             Support
           </a>
-          {onOpenBlueprint && (
-            <button
-              onClick={onOpenBlueprint}
-              className="hover:opacity-75 transition-opacity font-bold cursor-pointer"
-            >
-              ML Workbench
-            </button>
-          )}
           {!user && (
             <button
               onClick={onOpenLoginModal}

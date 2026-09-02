@@ -4,7 +4,6 @@ import CoherentView from './components/CoherentView';
 import HeroSection from './components/HeroSection';
 import Globe3D from './components/Globe3D';
 import ConstellationView from './components/ConstellationView';
-import BlueprintView from './components/BlueprintView';
 import FlightResultsModal from './components/FlightResultsModal';
 import CreateAccountModal from './components/CreateAccountModal';
 import LoginModal from './components/LoginModal';
@@ -43,7 +42,6 @@ export default function App() {
         onGoHome={() => setActiveTheme('constellation')}
         onOpenAccountModal={() => setIsAccountModalOpen(true)}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
-        onOpenBlueprint={() => setActiveTheme('blueprint')}
         user={user}
         onLogout={() => setUser(null)}
       />
@@ -95,14 +93,6 @@ export default function App() {
                 setIsSearchModalOpen(true);
               }
             }}
-          />
-        )}
-
-        {activeTheme === 'blueprint' && (
-          <BlueprintView
-            source={source}
-            destination={destination}
-            onOpenInsights={() => setIsInsightsModalOpen(true)}
           />
         )}
 
