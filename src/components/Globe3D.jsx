@@ -65,7 +65,7 @@ export default function Globe3D({
   }, []);
 
   // Calculated dimension based on scale, capped by viewport so it always fits
-  const desiredDimension = Math.round(1150 * sizeScale);
+  const desiredDimension = Math.round(1300 * sizeScale);
   const viewportCap = viewportWidth < 480
     ? viewportWidth * 1.35   // small phones: allow slight overflow, clipped by parent's overflow rules
     : viewportWidth < 768
