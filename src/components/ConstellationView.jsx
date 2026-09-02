@@ -49,7 +49,7 @@ export default function ConstellationView({ source, destination, onEnterIntellig
 
         {/* Right Column (3D Globe 20% Larger & Shifted 5% Right) */}
         <div className="lg:col-span-6 flex items-center justify-end relative my-auto">
-          <Globe3D source={source} destination={destination} hideMarkers={true} sizeScale={1.2} shiftRight={true} />
+          <Globe3D source={source} destination={destination} hideMarkers={true} sizeScale={1.6} shiftRight={true} />
         </div>
 
       </div>
