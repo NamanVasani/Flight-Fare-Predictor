@@ -12,6 +12,9 @@ export default function HeroSection({
   onSwap,
   onSearch
 }) {
+  // Dynamic min date so users can't pick a day that's already passed
+  const todayStr = new Date().toISOString().slice(0, 10);
+
   return (
     <div className="w-full flex flex-col justify-center py-6 lg:py-12 relative z-30">
       
@@ -108,7 +111,7 @@ export default function HeroSection({
           <input
             type="date"
             value={date}
-            min="2026-01-01"
+            min={todayStr}
             max="2027-12-31"
             onChange={(e) => onDateChange(e.target.value)}
             className="w-full bg-transparent text-lg sm:text-xl font-black text-[#3C1318] focus:outline-none cursor-pointer p-0"

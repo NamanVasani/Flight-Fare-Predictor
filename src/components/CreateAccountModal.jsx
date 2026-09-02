@@ -8,6 +8,12 @@ export default function CreateAccountModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
+  const handleClose = () => {
+    setSubmitted(false);
+    setEmail('');
+    onClose();
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
@@ -23,7 +29,7 @@ export default function CreateAccountModal({ isOpen, onClose }) {
       <div className="bg-white rounded-3xl max-w-md w-full max-h-[90dvh] overflow-y-auto border border-[#E5E7EB] shadow-2xl p-6 sm:p-8 relative my-8">
         
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-6 right-6 p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-[#3D1014] transition-colors"
         >
           <X className="w-5 h-5" />
@@ -78,10 +84,7 @@ export default function CreateAccountModal({ isOpen, onClose }) {
               Your account has been activated. We've sent your AI fare forecasting dashboard access link to <span className="font-bold">{email}</span>.
             </p>
             <button
-              onClick={() => {
-                setSubmitted(false);
-                onClose();
-              }}
+              onClick={handleClose}
               className="bg-[#3D1014] text-white font-semibold text-xs px-6 py-2.5 rounded-full"
             >
               Done

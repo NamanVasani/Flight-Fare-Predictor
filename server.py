@@ -5,6 +5,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import os
+import calendar
 
 PORT = int(os.environ.get("PORT", 5001))
 
@@ -19,19 +20,30 @@ classes = joblib.load(os.path.join(MODEL_DIR, 'label_encoder_classes.pkl'))
 
 # Combined supported cities (all cities that appear in training data)
 SUPPORTED_CITIES = {"Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore", "Cochin", "Hyderabad"}
+_SUPPORTED_CITIES_LOWER = {c.lower(): c for c in SUPPORTED_CITIES}
 
 CITY_ALIASES = {
-    "New Delhi": "Delhi",
-    "Bengaluru": "Banglore",
-    "Bangalore": "Banglore",
-    "DEL": "Delhi",
-    "COK": "Cochin",
-    "BOM": "Mumbai",
-    "CCU": "Kolkata",
-    "MAA": "Chennai",
-    "HYD": "Hyderabad",
-    "BLR": "Banglore",
+    "new delhi": "Delhi",
+    "bengaluru": "Banglore",
+    "bangalore": "Banglore",
+    "del": "Delhi",
+    "cok": "Cochin",
+    "bom": "Mumbai",
+    "ccu": "Kolkata",
+    "maa": "Chennai",
+    "hyd": "Hyderabad",
+    "blr": "Banglore",
 }
+
+def normalize_city(raw):
+    """Case/whitespace-insensitive city lookup: exact city name, alias, or IATA code."""
+    cleaned = str(raw).strip()
+    lowered = cleaned.lower()
+    if lowered in _SUPPORTED_CITIES_LOWER:
+        return _SUPPORTED_CITIES_LOWER[lowered]
+    if lowered in CITY_ALIASES:
+        return CITY_ALIASES[lowered]
+    return cleaned
 
 INFO_MAP = {
     'no info': 'No Info',
@@ -69,8 +81,8 @@ def validate_predict_inputs(data):
     if raw_source is None or raw_dest is None or raw_airline is None:
         return False, "Missing required fields: source, destination, and airline must be specified."
 
-    norm_source = CITY_ALIASES.get(str(raw_source).strip(), str(raw_source).strip())
-    norm_dest = CITY_ALIASES.get(str(raw_dest).strip(), str(raw_dest).strip())
+    norm_source = normalize_city(raw_source)
+    norm_dest = normalize_city(raw_dest)
 
     # Use combined city set for symmetric validation
     if norm_source not in SUPPORTED_CITIES:
@@ -78,6 +90,9 @@ def validate_predict_inputs(data):
 
     if norm_dest not in SUPPORTED_CITIES:
         return False, f"Unsupported destination city '{raw_dest}'. Supported: {sorted(list(SUPPORTED_CITIES))}."
+
+    if norm_source == norm_dest:
+        return False, "Source and destination cannot be the same city."
 
     try:
         dep_hour = int(get_param(data, ['dep_hour', 'depHour', 'dep_time', 'depTime'], -99))
@@ -94,10 +109,11 @@ def validate_predict_inputs(data):
         return False, f"duration_mins must be 20–1800, got {duration}."
     if not (0 <= stops <= 5):
         return False, f"stops must be 0–5, got {stops}."
-    if not (1 <= day <= 31):
-        return False, f"day must be 1–31, got {day}."
     if not (1 <= month <= 12):
         return False, f"month must be 1–12, got {month}."
+    days_in_month = calendar.monthrange(2026, month)[1]
+    if not (1 <= day <= days_in_month):
+        return False, f"day must be 1–{days_in_month} for month {month}, got {day}."
 
     additional_info = get_param(data, ['additional_info', 'additionalInfo', 'Additional_Info', 'additional_Info'], 'No Info')
 
@@ -272,8 +288,8 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"success": False, "error": "Missing source or destination."}).encode('utf-8'))
                 return
 
-            norm_source = CITY_ALIASES.get(str(raw_source).strip(), str(raw_source).strip())
-            norm_dest = CITY_ALIASES.get(str(raw_dest).strip(), str(raw_dest).strip())
+            norm_source = normalize_city(raw_source)
+            norm_dest = normalize_city(raw_dest)
 
             if norm_source not in SUPPORTED_CITIES:
                 self.send_response(400)
@@ -291,6 +307,14 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"success": False, "error": f"Unsupported destination '{raw_dest}'. Supported: {sorted(list(SUPPORTED_CITIES))}."}).encode('utf-8'))
                 return
 
+            if norm_source == norm_dest:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": "Source and destination cannot be the same city."}).encode('utf-8'))
+                return
+
             try:
                 day = int(get_param(data, ['day', 'journey_day'], 15))
                 month = int(get_param(data, ['month', 'journey_month'], 9))
@@ -302,20 +326,21 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"success": False, "error": "day and month must be valid integers."}).encode('utf-8'))
                 return
 
-            if not (1 <= day <= 31):
-                self.send_response(400)
-                self.send_header('Content-Type', 'application/json')
-                self._send_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps({"success": False, "error": f"day must be 1-31, got {day}."}).encode('utf-8'))
-                return
-
             if not (1 <= month <= 12):
                 self.send_response(400)
                 self.send_header('Content-Type', 'application/json')
                 self._send_cors_headers()
                 self.end_headers()
                 self.wfile.write(json.dumps({"success": False, "error": f"month must be 1-12, got {month}."}).encode('utf-8'))
+                return
+
+            days_in_month = calendar.monthrange(2026, month)[1]
+            if not (1 <= day <= days_in_month):
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": f"day must be 1-{days_in_month} for month {month}, got {day}."}).encode('utf-8'))
                 return
 
             airlines_info = [
