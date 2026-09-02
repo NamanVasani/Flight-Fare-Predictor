@@ -16,8 +16,8 @@ import { getAirportByCode } from './data/airports';
 export default function App() {
   const [activeTheme, setActiveTheme] = useState('constellation');
 
-  const [source, setSource] = useState(() => getAirportByCode('AMD'));
-  const [destination, setDestination] = useState(() => getAirportByCode('DEL'));
+  const [source, setSource] = useState(() => getAirportByCode('DEL'));
+  const [destination, setDestination] = useState(() => getAirportByCode('BOM'));
   const [date, setDate] = useState('2026-09-15');
 
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -25,7 +25,7 @@ export default function App() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
-  const [, setUser] = useState(null);
+  const [user, setUser] = useState(null);
 
   const handleSwap = () => {
     const temp = source;
@@ -38,12 +38,15 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#3C1318] flex flex-col justify-between overflow-x-hidden selection:bg-[#00F2FE]/30 selection:text-[#3C1318] relative font-sans">
+    <div className="min-h-dvh bg-[#FAF7F2] text-[#3C1318] flex flex-col justify-between overflow-x-hidden selection:bg-[#00F2FE]/30 selection:text-[#3C1318] relative font-sans">
       
       <Navbar
         onGoHome={() => setActiveTheme('constellation')}
         onOpenAccountModal={() => setIsAccountModalOpen(true)}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        onOpenBlueprint={() => setActiveTheme('blueprint')}
+        user={user}
+        onLogout={() => setUser(null)}
       />
 
       <main className="flex-grow flex flex-col justify-center">
@@ -103,6 +106,7 @@ export default function App() {
           <BlueprintView
             source={source}
             destination={destination}
+            onOpenInsights={() => setIsInsightsModalOpen(true)}
           />
         )}
 

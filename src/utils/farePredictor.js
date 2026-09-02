@@ -1,5 +1,4 @@
 // src/utils/farePredictor.js
-import { calculateDistanceKm } from '../data/airports';
 
 // Dynamic API_BASE — uses Render URL if configured, otherwise falls back to local port 5001 or fallback mock
 const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -8,6 +7,27 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
 
 // Only these cities exist in the trained dataset — anything else is flagged as unsupported
 const KNOWN_CITIES = new Set(["Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore", "Cochin", "Hyderabad"]);
+
+// Default background colors for airline logo badges (used when backend doesn't supply one)
+const AIRLINE_COLORS = {
+  "IndiGo": "#0B2545",
+  "SpiceJet": "#D90429",
+  "Vistara": "#4A154B",
+  "Air India": "#E63946",
+  "Akasa Air": "#FF6B35",
+  "Go First": "#0077B6",
+};
+
+// Parses an "hh:mm AM/PM" time string into a 24-hour integer hour (falls back to 0)
+function parseHourFromTime(timeStr) {
+  if (!timeStr || typeof timeStr !== "string") return 0;
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+  if (!match) return 0;
+  let hour = parseInt(match[1], 10) % 12;
+  const isPM = match[3].toUpperCase() === "PM";
+  if (isPM) hour += 12;
+  return hour;
+}
 
 export async function predictCategorizedFlightFares(source, destination, date) {
   let sourceCity = source.city === "Bengaluru" ? "Banglore" : source.city;
@@ -42,8 +62,10 @@ export async function predictCategorizedFlightFares(source, destination, date) {
     const allFlights = data.flights.map(f => ({
       id: f.id,
       code: f.logo,
+      logoBg: AIRLINE_COLORS[f.airline] || "#3C1318",
       airline: f.airline,
       depTime: f.depTime,
+      depHour: parseHourFromTime(f.depTime),
       arrTime: f.arrTime,
       duration: f.duration,
       stopsLabel: f.stops,
@@ -85,51 +107,6 @@ export async function predictCategorizedFlightFares(source, destination, date) {
   }
 }
 
-export function predictFlightFares(source, destination, dateString) {
-  const dist = calculateDistanceKm(source.lat, source.lng, destination.lat, destination.lng);
-  const isInternational = dist > 2200;
-
-  const slots = [
-    { dep: "06:15 AM", label: "Early Morning", trend: "lowest", airline: "IndiGo", code: "6E" },
-    { dep: "10:30 AM", label: "Morning", trend: "best_value", airline: "Vistara", code: "UK" },
-    { dep: "04:45 PM", label: "Evening", trend: "rising_soon", airline: "Air India", code: "AI" },
-    { dep: "08:20 PM", label: "Night", trend: "stable", airline: "SpiceJet", code: "SG" }
-  ];
-
-  const flights = slots.map((slot, idx) => {
-    const baseFare = (isInternational ? 11500 : 2600) + (dist * 3.4);
-    const finalFareRaw = Math.round(baseFare * (1 + idx * 0.1));
-
-    return {
-      id: `FL-${idx + 101}`,
-      airline: slot.airline,
-      logo: slot.code,
-      flightNo: `${slot.code}-${100 + idx * 12}`,
-      depTime: slot.dep,
-      arrTime: "08:30 AM",
-      duration: `${Math.floor(dist / 400)}h ${(dist % 400) % 60}m`,
-      stops: dist > 3500 ? "1 Stop" : "Non-stop",
-      predictedFare: `₹ ${finalFareRaw.toLocaleString('en-IN')}`,
-      numericFare: finalFareRaw,
-      confidence: "Heuristic Estimate",
-      trend: slot.trend,
-      aircraft: "Airbus A320neo"
-    };
-  });
-
-  return {
-    flights,
-    recommendation: {
-      status: "HEURISTIC ESTIMATE (OFFLINE)",
-      badgeBg: "bg-amber-100 text-amber-800 border border-amber-300",
-      message: "Distance-based estimate active (Model offline).",
-      confidence: "Distance Heuristic"
-    },
-    distanceKm: dist,
-    isHeuristicEstimate: true
-  };
-}
-
 function fallbackCategorizedFares(source, destination) {
   const lowTier = [
     { id: '6e-1', code: '6E', logoBg: '#0B2545', airline: 'IndiGo', depTime: '06:20 AM', arrTime: '08:10 AM', duration: '1h 50m', stopsLabel: 'Non-stop', formattedPrice: '₹ 4,290', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
@@ -146,5 +123,14 @@ function fallbackCategorizedFares(source, destination) {
     { id: 'uk-2', code: 'UK', logoBg: '#451343', airline: 'Vistara', depTime: '10:40 AM', arrTime: '09:30 PM', duration: '10h 50m', stopsLabel: '2 Stops', formattedPrice: '₹ 21,600', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' }
   ];
 
-  return { lowTier, mediumTier, highTier, unsupportedRoute: false, isOfflineFallback: true, offlineNotice: "Offline Estimate — Model Unavailable" };
+  const withDepHour = (tier) => tier.map(f => ({ ...f, depHour: parseHourFromTime(f.depTime) }));
+
+  return {
+    lowTier: withDepHour(lowTier),
+    mediumTier: withDepHour(mediumTier),
+    highTier: withDepHour(highTier),
+    unsupportedRoute: false,
+    isOfflineFallback: true,
+    offlineNotice: "Offline Estimate — Model Unavailable"
+  };
 }

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Cpu, CheckCircle2, Sliders, Play, RefreshCw, BarChart, Layers, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Cpu, CheckCircle2, Sliders, Play, RefreshCw, BarChart, Layers, AlertTriangle, Brain } from 'lucide-react';
 import { AIRPORTS } from '../data/airports';
 
 const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? "http://localhost:5001"
   : "https://flight-fare-predictor-ggn7.onrender.com";
 
-export default function BlueprintView({ source, destination }) {
+export default function BlueprintView({ source, destination, onOpenInsights }) {
   const [selectedSource, setSelectedSource] = useState(source.city);
   const [selectedDest, setSelectedDest] = useState(destination.city);
   const [selectedAirline, setSelectedAirline] = useState('IndiGo');
@@ -18,6 +18,16 @@ export default function BlueprintView({ source, destination }) {
   const [prediction, setPrediction] = useState(null);
   const [loading, setLoading] = useState(false);
   const [apiOnline, setApiOnline] = useState(true);
+  const isMountedRef = useRef(true);
+  const fallbackTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
+    };
+  }, []);
 
   const runPrediction = async () => {
     setLoading(true);
@@ -43,18 +53,22 @@ export default function BlueprintView({ source, destination }) {
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
-          setPrediction({ ...data, isOfflineFallback: false });
-          setApiOnline(true);
-          setLoading(false);
+          if (isMountedRef.current) {
+            setPrediction({ ...data, isOfflineFallback: false });
+            setApiOnline(true);
+            setLoading(false);
+          }
           return;
         }
       }
     } catch (err) {
-      setApiOnline(false);
+      if (isMountedRef.current) setApiOnline(false);
     }
 
     // Client Heuristic fallback when backend is offline
-    setTimeout(() => {
+    fallbackTimeoutRef.current = setTimeout(() => {
+      fallbackTimeoutRef.current = null;
+      if (!isMountedRef.current) return;
       const baseFare = 3200 + (durationMins * 18.5) + (stops * 1400);
       const airlineMultipliers = {
         'IndiGo': 0.95,
@@ -125,11 +139,23 @@ export default function BlueprintView({ source, destination }) {
           </p>
         </div>
 
-        <div className="flex items-center space-x-3 bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700">
-          <span className={`w-3 h-3 rounded-full ${apiOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
-          <span className="text-xs font-mono text-slate-300">
-            {apiOnline ? 'PYTHON SERVER ONLINE (LIVE ENSEMBLE)' : 'OFFLINE HEURISTIC ESTIMATE (MODEL UNREACHABLE)'}
-          </span>
+        <div className="flex flex-col items-stretch gap-3 shrink-0">
+          <div className="flex items-center space-x-3 bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700">
+            <span className={`w-3 h-3 rounded-full ${apiOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+            <span className="text-xs font-mono text-slate-300">
+              {apiOnline ? 'PYTHON SERVER ONLINE (LIVE ENSEMBLE)' : 'OFFLINE HEURISTIC ESTIMATE (MODEL UNREACHABLE)'}
+            </span>
+          </div>
+          {onOpenInsights && (
+            <button
+              type="button"
+              onClick={onOpenInsights}
+              className="flex items-center justify-center space-x-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 px-4 py-2.5 rounded-2xl font-bold text-xs uppercase tracking-wider cursor-pointer transition-colors"
+            >
+              <Brain className="w-4 h-4" />
+              <span>View ML Insights</span>
+            </button>
+          )}
         </div>
       </div>
 

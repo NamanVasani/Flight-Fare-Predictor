@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Plane, ArrowRight, CreditCard, Smartphone, Upload, CheckCircle2, Download, Loader2, ArrowLeft, Clock, Luggage } from 'lucide-react';
 import jsPDF from 'jspdf';
 
@@ -17,6 +17,13 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
   const [upiApp, setUpiApp] = useState('googlepay');
   const [bookingId] = useState(() => 'FF' + Math.floor(1000000 + Math.random() * 9000000).toString().slice(0, 6).toUpperCase());
   const [pnr] = useState(() => Math.random().toString(36).slice(2, 8).toUpperCase());
+  const payTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (payTimeoutRef.current) clearTimeout(payTimeoutRef.current);
+    };
+  }, []);
 
   if (!isOpen || !flight) return null;
 
@@ -30,6 +37,10 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
   const otherCharges = Math.round(unitPrice - baseFare - taxes);
 
   const resetAndClose = () => {
+    if (payTimeoutRef.current) {
+      clearTimeout(payTimeoutRef.current);
+      payTimeoutRef.current = null;
+    }
     setStep('passengers');
     setPassengerCount(1);
     setPassengers([{ name: '', age: '', aadharName: '' }]);
@@ -60,7 +71,10 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
 
   const handlePay = () => {
     setStep('processing');
-    setTimeout(() => setStep('ticket'), 1800);
+    payTimeoutRef.current = setTimeout(() => {
+      payTimeoutRef.current = null;
+      setStep('ticket');
+    }, 1800);
   };
 
   const seatLetter = (idx) => String.fromCharCode(65 + (idx % 6)) + (12 + idx);
@@ -235,7 +249,7 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
 
   return (
     <div className="fixed inset-0 z-50 bg-[#FAF7F2] overflow-y-auto animate-fade-in">
-      <div className="max-w-3xl mx-auto min-h-screen px-4 sm:px-8 py-8">
+      <div className="max-w-3xl mx-auto min-h-dvh px-4 sm:px-8 py-8">
 
         <div className="flex items-center justify-between mb-6">
           <button

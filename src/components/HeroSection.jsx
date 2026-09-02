@@ -23,13 +23,13 @@ export default function HeroSection({
       </div>
 
       {/* 2. Main Headline (+80% size) */}
-      <h1 className="text-6xl sm:text-8xl lg:text-9xl xl:text-[124px] font-serif text-[#3C1318] leading-[1.02] tracking-tight mb-8">
+      <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl xl:text-[124px] font-serif text-[#3C1318] leading-[1.05] sm:leading-[1.02] tracking-tight mb-8">
         Where will <br />
         <span className="italic font-normal">you go next?</span>
       </h1>
 
       {/* 3. Subtitle Paragraph (+80% size) */}
-      <p className="text-[#525252] max-w-2xl text-xl sm:text-2xl lg:text-3xl leading-relaxed mb-10 sm:mb-14 font-medium">
+      <p className="text-[#525252] max-w-2xl text-base sm:text-xl lg:text-2xl xl:text-3xl leading-relaxed mb-10 sm:mb-14 font-medium">
         Select origin and destination to generate live flight schedules <br className="hidden sm:inline" />
         &amp; fare forecasts with AI precision.
       </p>
@@ -38,7 +38,7 @@ export default function HeroSection({
       <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-search-card border border-stone-200/80 flex flex-col lg:flex-row items-stretch lg:items-center gap-4 sm:gap-6 w-full max-w-6xl relative z-30">
         
         {/* FROM */}
-        <div className="flex-1 min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
+        <div className="flex-1 lg:min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
           <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
             <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">FROM</span>
             <span className="text-xs sm:text-sm font-medium text-stone-500">(SOURCE)</span>
@@ -72,7 +72,7 @@ export default function HeroSection({
         </div>
 
         {/* TO */}
-        <div className="flex-1 min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
+        <div className="flex-1 lg:min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
           <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
             <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">TO</span>
             <span className="text-xs sm:text-sm font-medium text-stone-500">(DESTINATION)</span>
@@ -120,9 +120,9 @@ export default function HeroSection({
           <button
             onClick={onSearch}
             type="button"
-            className="w-full lg:w-auto bg-[#3C1318] hover:bg-[#280C10] px-10 py-5 rounded-2xl text-white font-bold text-xl sm:text-2xl flex items-center justify-center space-x-3 transition-all shadow-md active:scale-95 group cursor-pointer"
+            className="w-full lg:w-auto bg-[#3C1318] hover:bg-[#280C10] px-6 py-4 sm:px-10 sm:py-5 rounded-2xl text-white font-bold text-lg sm:text-2xl flex items-center justify-center space-x-3 transition-all shadow-md active:scale-95 group cursor-pointer"
           >
-            <Search className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+            <Search className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:scale-110 transition-transform" />
             <span>Search</span>
           </button>
         </div>

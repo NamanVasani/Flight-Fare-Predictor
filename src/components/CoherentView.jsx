@@ -7,6 +7,11 @@ export default function CoherentView({ source, destination, date, onSourceChange
   const [results, setResults] = useState({ lowTier: [], mediumTier: [], highTier: [], unsupportedRoute: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const resultsRef = React.useRef(null);
+
+  const scrollToResults = () => {
+    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -46,7 +51,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
   return (
     <div className="w-full max-w-[1850px] mx-auto py-8 sm:py-12 px-6 sm:px-12 lg:px-20 space-y-12 animate-fade-in">
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/80 shadow-search-card flex flex-col lg:flex-row items-center gap-6">
-        <div className="flex-1 w-full min-w-[280px] bg-[#FAF7F2] px-7 py-5 rounded-2xl border border-stone-200/60 flex items-center justify-between">
+        <div className="flex-1 w-full lg:min-w-[280px] bg-[#FAF7F2] px-7 py-5 rounded-2xl border border-stone-200/60 flex items-center justify-between">
           <div className="w-full">
             <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
               <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">FROM</span>
@@ -65,7 +70,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
         <button onClick={onSwap} type="button" className="w-14 h-14 rounded-full bg-[#FAF7F2] hover:bg-stone-200/70 border border-stone-200 text-[#3C1318] flex items-center justify-center shrink-0 shadow-sm cursor-pointer">
           <ArrowLeftRight className="w-6 h-6" />
         </button>
-        <div className="flex-1 w-full min-w-[280px] bg-[#FAF7F2] px-7 py-5 rounded-2xl border border-stone-200/60 flex items-center justify-between">
+        <div className="flex-1 w-full lg:min-w-[280px] bg-[#FAF7F2] px-7 py-5 rounded-2xl border border-stone-200/60 flex items-center justify-between">
           <div className="w-full">
             <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
               <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">TO</span>
@@ -81,12 +86,13 @@ export default function CoherentView({ source, destination, date, onSourceChange
             </div>
           </div>
         </div>
-        <button onClick={() => onSearchFlight()} className="w-full lg:w-auto bg-[#3C1318] hover:bg-[#280C10] text-white px-10 py-5 rounded-2xl font-bold text-xl sm:text-2xl flex items-center justify-center space-x-3 shadow-lg cursor-pointer shrink-0">
+        <button type="button" onClick={scrollToResults} className="w-full lg:w-auto bg-[#3C1318] hover:bg-[#280C10] text-white px-10 py-5 rounded-2xl font-bold text-xl sm:text-2xl flex items-center justify-center space-x-3 shadow-lg cursor-pointer shrink-0">
           <Search className="w-6 h-6" />
           <span>Search</span>
         </button>
       </div>
 
+      <div ref={resultsRef}>
       {loading && (
         <div className="bg-white rounded-3xl border border-stone-200/80 p-12 flex flex-col items-center justify-center space-y-4 text-stone-500">
           <Loader2 className="w-10 h-10 animate-spin text-[#3C1318]" />
@@ -258,6 +264,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

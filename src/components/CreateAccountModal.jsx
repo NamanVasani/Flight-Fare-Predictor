@@ -19,8 +19,8 @@ export default function CreateAccountModal({ isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3D1014]/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-md w-full border border-[#E5E7EB] shadow-2xl p-6 sm:p-8 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3D1014]/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-md w-full max-h-[90dvh] overflow-y-auto border border-[#E5E7EB] shadow-2xl p-6 sm:p-8 relative my-8">
         
         <button
           onClick={onClose}

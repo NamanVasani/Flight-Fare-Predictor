@@ -56,8 +56,8 @@ export default function MLInsightsModal({ isOpen, onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2E0C10]/65 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 shadow-2xl p-6 sm:p-8 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2E0C10]/65 backdrop-blur-sm animate-fade-in overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90dvh] overflow-y-auto border border-gray-200 shadow-2xl p-6 sm:p-8 relative my-8">
         
         {/* Close Button */}
         <button

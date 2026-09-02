@@ -62,15 +62,6 @@ export const AIRPORTS = [
     lng: 78.4294,
     badge: "HYD • Hyderabad"
   },
-  {
-    code: "AMD",
-    city: "Ahmedabad",
-    name: "Sardar Vallabhbhai Patel International",
-    country: "India",
-    lat: 23.0734,
-    lng: 72.6266,
-    badge: "AMD • Ahmedabad"
-  }
 ];
 
 export function getAirportByCode(code) {

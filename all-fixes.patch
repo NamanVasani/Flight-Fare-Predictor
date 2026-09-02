@@ -1,0 +1,1006 @@
+diff --git a/index.html b/index.html
+index dd5cb71c..1ceee371 100644
+--- a/index.html
++++ b/index.html
+@@ -3,7 +3,7 @@
+   <head>
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/plane-logo.svg" />
+-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+     <title>FlyFinder | AI Flight Intelligence & Route Forecasting</title>
+     <meta name="description" content="Select origin and destination to generate live flight schedules & fare forecasts with AI precision." />
+     <!-- Google Fonts -->
+diff --git a/requirements.txt b/requirements.txt
+index 92a7467e..6583b8d8 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -4,5 +4,3 @@ scikit-learn==1.5.2
+ xgboost==2.1.4
+ catboost==1.2.10
+ joblib==1.4.2
+-streamlit==1.40.0
+-
+diff --git a/server.py b/server.py
+index 36421fb5..df8532f4 100644
+--- a/server.py
++++ b/server.py
+@@ -191,7 +191,10 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
+             self.wfile.write(json.dumps(resp).encode('utf-8'))
+         else:
+             self.send_response(404)
++            self.send_header('Content-Type', 'application/json')
++            self._send_cors_headers()
+             self.end_headers()
++            self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode('utf-8'))
+ 
+     def do_POST(self):
+         content_length = int(self.headers.get('Content-Length', 0))
+@@ -288,8 +291,32 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
+                 self.wfile.write(json.dumps({"success": False, "error": f"Unsupported destination '{raw_dest}'. Supported: {sorted(list(SUPPORTED_CITIES))}."}).encode('utf-8'))
+                 return
+ 
+-            day = int(get_param(data, ['day', 'journey_day'], 15))
+-            month = int(get_param(data, ['month', 'journey_month'], 9))
++            try:
++                day = int(get_param(data, ['day', 'journey_day'], 15))
++                month = int(get_param(data, ['month', 'journey_month'], 9))
++            except (ValueError, TypeError):
++                self.send_response(400)
++                self.send_header('Content-Type', 'application/json')
++                self._send_cors_headers()
++                self.end_headers()
++                self.wfile.write(json.dumps({"success": False, "error": "day and month must be valid integers."}).encode('utf-8'))
++                return
++
++            if not (1 <= day <= 31):
++                self.send_response(400)
++                self.send_header('Content-Type', 'application/json')
++                self._send_cors_headers()
++                self.end_headers()
++                self.wfile.write(json.dumps({"success": False, "error": f"day must be 1-31, got {day}."}).encode('utf-8'))
++                return
++
++            if not (1 <= month <= 12):
++                self.send_response(400)
++                self.send_header('Content-Type', 'application/json')
++                self._send_cors_headers()
++                self.end_headers()
++                self.wfile.write(json.dumps({"success": False, "error": f"month must be 1-12, got {month}."}).encode('utf-8'))
++                return
+ 
+             airlines_info = [
+                 {"code": "6E", "name": "IndiGo", "logo_bg": "#0B2545", "text_color": "#059669", "tier_hint": "Low", "dep": "06:20 AM", "dep_h": 6, "dur": 110, "arr": "08:10 AM", "stops": "Non-stop", "stop_num": 0, "info": "No Info"},
+diff --git a/src/App.jsx b/src/App.jsx
+index 2ccbdd33..2c31b1d3 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -16,8 +16,8 @@ import { getAirportByCode } from './data/airports';
+ export default function App() {
+   const [activeTheme, setActiveTheme] = useState('constellation');
+ 
+-  const [source, setSource] = useState(() => getAirportByCode('AMD'));
+-  const [destination, setDestination] = useState(() => getAirportByCode('DEL'));
++  const [source, setSource] = useState(() => getAirportByCode('DEL'));
++  const [destination, setDestination] = useState(() => getAirportByCode('BOM'));
+   const [date, setDate] = useState('2026-09-15');
+ 
+   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+@@ -25,7 +25,7 @@ export default function App() {
+   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+   const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false);
+   const [selectedFlight, setSelectedFlight] = useState(null);
+-  const [, setUser] = useState(null);
++  const [user, setUser] = useState(null);
+ 
+   const handleSwap = () => {
+     const temp = source;
+@@ -38,12 +38,15 @@ export default function App() {
+   };
+ 
+   return (
+-    <div className="min-h-screen bg-[#FAF7F2] text-[#3C1318] flex flex-col justify-between overflow-x-hidden selection:bg-[#00F2FE]/30 selection:text-[#3C1318] relative font-sans">
++    <div className="min-h-dvh bg-[#FAF7F2] text-[#3C1318] flex flex-col justify-between overflow-x-hidden selection:bg-[#00F2FE]/30 selection:text-[#3C1318] relative font-sans">
+       
+       <Navbar
+         onGoHome={() => setActiveTheme('constellation')}
+         onOpenAccountModal={() => setIsAccountModalOpen(true)}
+         onOpenLoginModal={() => setIsLoginModalOpen(true)}
++        onOpenBlueprint={() => setActiveTheme('blueprint')}
++        user={user}
++        onLogout={() => setUser(null)}
+       />
+ 
+       <main className="flex-grow flex flex-col justify-center">
+@@ -103,6 +106,7 @@ export default function App() {
+           <BlueprintView
+             source={source}
+             destination={destination}
++            onOpenInsights={() => setIsInsightsModalOpen(true)}
+           />
+         )}
+ 
+diff --git a/src/components/BlueprintView.jsx b/src/components/BlueprintView.jsx
+index 2b1678f2..4698b0c7 100644
+--- a/src/components/BlueprintView.jsx
++++ b/src/components/BlueprintView.jsx
+@@ -1,12 +1,12 @@
+-import React, { useState, useEffect } from 'react';
+-import { Cpu, CheckCircle2, Sliders, Play, RefreshCw, BarChart, Layers, AlertTriangle } from 'lucide-react';
++import React, { useState, useEffect, useRef } from 'react';
++import { Cpu, CheckCircle2, Sliders, Play, RefreshCw, BarChart, Layers, AlertTriangle, Brain } from 'lucide-react';
+ import { AIRPORTS } from '../data/airports';
+ 
+ const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+   ? "http://localhost:5001"
+   : "https://flight-fare-predictor-ggn7.onrender.com";
+ 
+-export default function BlueprintView({ source, destination }) {
++export default function BlueprintView({ source, destination, onOpenInsights }) {
+   const [selectedSource, setSelectedSource] = useState(source.city);
+   const [selectedDest, setSelectedDest] = useState(destination.city);
+   const [selectedAirline, setSelectedAirline] = useState('IndiGo');
+@@ -18,6 +18,16 @@ export default function BlueprintView({ source, destination }) {
+   const [prediction, setPrediction] = useState(null);
+   const [loading, setLoading] = useState(false);
+   const [apiOnline, setApiOnline] = useState(true);
++  const isMountedRef = useRef(true);
++  const fallbackTimeoutRef = useRef(null);
++
++  useEffect(() => {
++    isMountedRef.current = true;
++    return () => {
++      isMountedRef.current = false;
++      if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
++    };
++  }, []);
+ 
+   const runPrediction = async () => {
+     setLoading(true);
+@@ -43,18 +53,22 @@ export default function BlueprintView({ source, destination }) {
+       if (res.ok) {
+         const data = await res.json();
+         if (data.success) {
+-          setPrediction({ ...data, isOfflineFallback: false });
+-          setApiOnline(true);
+-          setLoading(false);
++          if (isMountedRef.current) {
++            setPrediction({ ...data, isOfflineFallback: false });
++            setApiOnline(true);
++            setLoading(false);
++          }
+           return;
+         }
+       }
+     } catch (err) {
+-      setApiOnline(false);
++      if (isMountedRef.current) setApiOnline(false);
+     }
+ 
+     // Client Heuristic fallback when backend is offline
+-    setTimeout(() => {
++    fallbackTimeoutRef.current = setTimeout(() => {
++      fallbackTimeoutRef.current = null;
++      if (!isMountedRef.current) return;
+       const baseFare = 3200 + (durationMins * 18.5) + (stops * 1400);
+       const airlineMultipliers = {
+         'IndiGo': 0.95,
+@@ -125,11 +139,23 @@ export default function BlueprintView({ source, destination }) {
+           </p>
+         </div>
+ 
+-        <div className="flex items-center space-x-3 bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700">
+-          <span className={`w-3 h-3 rounded-full ${apiOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+-          <span className="text-xs font-mono text-slate-300">
+-            {apiOnline ? 'PYTHON SERVER ONLINE (LIVE ENSEMBLE)' : 'OFFLINE HEURISTIC ESTIMATE (MODEL UNREACHABLE)'}
+-          </span>
++        <div className="flex flex-col items-stretch gap-3 shrink-0">
++          <div className="flex items-center space-x-3 bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700">
++            <span className={`w-3 h-3 rounded-full ${apiOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
++            <span className="text-xs font-mono text-slate-300">
++              {apiOnline ? 'PYTHON SERVER ONLINE (LIVE ENSEMBLE)' : 'OFFLINE HEURISTIC ESTIMATE (MODEL UNREACHABLE)'}
++            </span>
++          </div>
++          {onOpenInsights && (
++            <button
++              type="button"
++              onClick={onOpenInsights}
++              className="flex items-center justify-center space-x-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 px-4 py-2.5 rounded-2xl font-bold text-xs uppercase tracking-wider cursor-pointer transition-colors"
++            >
++              <Brain className="w-4 h-4" />
++              <span>View ML Insights</span>
++            </button>
++          )}
+         </div>
+       </div>
+ 
+diff --git a/src/components/CoherentView.jsx b/src/components/CoherentView.jsx
+index 64750ad7..6047583c 100644
+--- a/src/components/CoherentView.jsx
++++ b/src/components/CoherentView.jsx
+@@ -7,6 +7,11 @@ export default function CoherentView({ source, destination, date, onSourceChange
+   const [results, setResults] = useState({ lowTier: [], mediumTier: [], highTier: [], unsupportedRoute: false });
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState(null);
++  const resultsRef = React.useRef(null);
++
++  const scrollToResults = () => {
++    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
++  };
+ 
+   useEffect(() => {
+     let cancelled = false;
+@@ -46,7 +51,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
+   return (
+     <div className="w-full max-w-[1850px] mx-auto py-8 sm:py-12 px-6 sm:px-12 lg:px-20 space-y-12 animate-fade-in">
+       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/80 shadow-search-card flex flex-col lg:flex-row items-center gap-6">
+-        <div className="flex-1 w-full min-w-[280px] bg-[#FAF7F2] px-7 py-5 rounded-2xl border border-stone-200/60 flex items-center justify-between">
++        <div className="flex-1 w-full lg:min-w-[280px] bg-[#FAF7F2] px-7 py-5 rounded-2xl border border-stone-200/60 flex items-center justify-between">
+           <div className="w-full">
+             <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
+               <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">FROM</span>
+@@ -65,7 +70,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
+         <button onClick={onSwap} type="button" className="w-14 h-14 rounded-full bg-[#FAF7F2] hover:bg-stone-200/70 border border-stone-200 text-[#3C1318] flex items-center justify-center shrink-0 shadow-sm cursor-pointer">
+           <ArrowLeftRight className="w-6 h-6" />
+         </button>
+-        <div className="flex-1 w-full min-w-[280px] bg-[#FAF7F2] px-7 py-5 rounded-2xl border border-stone-200/60 flex items-center justify-between">
++        <div className="flex-1 w-full lg:min-w-[280px] bg-[#FAF7F2] px-7 py-5 rounded-2xl border border-stone-200/60 flex items-center justify-between">
+           <div className="w-full">
+             <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
+               <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">TO</span>
+@@ -81,12 +86,13 @@ export default function CoherentView({ source, destination, date, onSourceChange
+             </div>
+           </div>
+         </div>
+-        <button onClick={() => onSearchFlight()} className="w-full lg:w-auto bg-[#3C1318] hover:bg-[#280C10] text-white px-10 py-5 rounded-2xl font-bold text-xl sm:text-2xl flex items-center justify-center space-x-3 shadow-lg cursor-pointer shrink-0">
++        <button type="button" onClick={scrollToResults} className="w-full lg:w-auto bg-[#3C1318] hover:bg-[#280C10] text-white px-10 py-5 rounded-2xl font-bold text-xl sm:text-2xl flex items-center justify-center space-x-3 shadow-lg cursor-pointer shrink-0">
+           <Search className="w-6 h-6" />
+           <span>Search</span>
+         </button>
+       </div>
+ 
++      <div ref={resultsRef}>
+       {loading && (
+         <div className="bg-white rounded-3xl border border-stone-200/80 p-12 flex flex-col items-center justify-center space-y-4 text-stone-500">
+           <Loader2 className="w-10 h-10 animate-spin text-[#3C1318]" />
+@@ -258,6 +264,7 @@ export default function CoherentView({ source, destination, date, onSourceChange
+           )}
+         </div>
+       )}
++      </div>
+     </div>
+   );
+ }
+diff --git a/src/components/ConstellationView.jsx b/src/components/ConstellationView.jsx
+index 5cba39df..aa8cb59b 100644
+--- a/src/components/ConstellationView.jsx
++++ b/src/components/ConstellationView.jsx
+@@ -4,7 +4,7 @@ import Globe3D from './Globe3D';
+ 
+ export default function ConstellationView({ source, destination, onEnterIntelligence, onOpenAccount }) {
+   return (
+-    <div className="w-full flex-grow flex flex-col justify-between relative overflow-hidden bg-[#FAF7F2] min-h-[calc(100vh-100px)] animate-fade-in">
++    <div className="w-full flex-grow flex flex-col justify-between relative overflow-hidden bg-[#FAF7F2] min-h-[calc(100dvh-100px)] animate-fade-in">
+       
+       {/* Main Orbital Content Grid (+80% size) */}
+       <div className="max-w-[1920px] w-full mx-auto px-6 sm:px-12 lg:px-20 py-10 my-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center relative z-20">
+@@ -18,30 +18,30 @@ export default function ConstellationView({ source, destination, onEnterIntellig
+             </span>
+           </div>
+ 
+-          <h1 className="text-6xl sm:text-8xl lg:text-9xl xl:text-[118px] font-serif text-[#3C1318] leading-[1.03] tracking-tight">
++          <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl xl:text-[118px] font-serif text-[#3C1318] leading-[1.08] sm:leading-[1.03] tracking-tight">
+             Every journey <br />
+             <span className="italic font-normal">starts in orbit.</span>
+           </h1>
+ 
+-          <p className="text-[#525252] text-xl sm:text-2xl lg:text-3xl leading-relaxed font-medium">
++          <p className="text-[#525252] text-base sm:text-xl lg:text-2xl xl:text-3xl leading-relaxed font-medium">
+             A quieter, clearer way to analyze and predict airfare dynamics across global routes with live machine learning intelligence.
+           </p>
+ 
+-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-5 pt-4">
++          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-5 pt-4">
+             <button
+               onClick={onEnterIntelligence}
+-              className="bg-[#3C1318] hover:bg-[#280C10] text-white px-10 py-5 rounded-2xl font-bold text-xl sm:text-2xl flex items-center justify-center space-x-4 transition-all shadow-lg active:scale-95 cursor-pointer group"
++              className="bg-[#3C1318] hover:bg-[#280C10] text-white px-6 py-4 sm:px-10 sm:py-5 rounded-2xl font-bold text-base sm:text-2xl flex items-center justify-center space-x-3 sm:space-x-4 transition-all shadow-lg active:scale-95 cursor-pointer group"
+             >
+               <span>Enter flight intelligence</span>
+-              <ArrowRight className="w-6 h-6 group-hover:translate-x-1.5 transition-transform" />
++              <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-1.5 transition-transform shrink-0" />
+             </button>
+ 
+             <button
+               onClick={onOpenAccount}
+-              className="border-2 border-[#3C1318] hover:bg-[#3C1318]/5 text-[#3C1318] px-10 py-5 rounded-2xl font-bold text-xl sm:text-2xl flex items-center justify-center space-x-3 transition-all active:scale-95 cursor-pointer"
++              className="border-2 border-[#3C1318] hover:bg-[#3C1318]/5 text-[#3C1318] px-6 py-4 sm:px-10 sm:py-5 rounded-2xl font-bold text-base sm:text-2xl flex items-center justify-center space-x-2 sm:space-x-3 transition-all active:scale-95 cursor-pointer"
+             >
+               <span>Join FlyFinder Free</span>
+-              <Sparkles className="w-5 h-5 text-[#3C1318]" />
++              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-[#3C1318] shrink-0" />
+             </button>
+           </div>
+ 
+@@ -49,17 +49,17 @@ export default function ConstellationView({ source, destination, onEnterIntellig
+ 
+         {/* Right Column (3D Globe 20% Larger & Shifted 5% Right) */}
+         <div className="lg:col-span-6 flex items-center justify-end relative my-auto">
+-          <Globe3D source={source} destination={destination} hideMarkers={true} sizeScale={1.2} shiftRightPercent={5} />
++          <Globe3D source={source} destination={destination} hideMarkers={true} sizeScale={1.2} shiftRight={true} />
+         </div>
+ 
+       </div>
+ 
+       {/* Bottom Orbital Status Bar (+80% size) */}
+-      <div className="w-full border-t border-stone-300/60 bg-[#FAF7F2]/80 backdrop-blur-md py-5 px-8 sm:px-16 flex items-center justify-between text-xs sm:text-sm font-mono font-black tracking-widest text-[#7A5C61] uppercase z-30">
++      <div className="w-full border-t border-stone-300/60 bg-[#FAF7F2]/80 backdrop-blur-md py-3 sm:py-5 px-4 sm:px-8 lg:px-16 flex items-center justify-between gap-2 text-[9px] xs:text-[10px] sm:text-sm font-mono font-black tracking-wide sm:tracking-widest text-[#7A5C61] uppercase z-30 overflow-x-auto whitespace-nowrap">
+         <div>ORBITAL PATH / LOCKED</div>
+-        <div>ALTITUDE / 38,000 FT</div>
+-        <div className="flex items-center space-x-2.5">
+-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
++        <div className="hidden md:block">ALTITUDE / 38,000 FT</div>
++        <div className="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
++          <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+           <span>AI NAV / ACTIVE</span>
+         </div>
+       </div>
+diff --git a/src/components/CreateAccountModal.jsx b/src/components/CreateAccountModal.jsx
+index 68d56c3c..2325c0f0 100644
+--- a/src/components/CreateAccountModal.jsx
++++ b/src/components/CreateAccountModal.jsx
+@@ -19,8 +19,8 @@ export default function CreateAccountModal({ isOpen, onClose }) {
+   };
+ 
+   return (
+-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3D1014]/60 backdrop-blur-sm animate-fade-in">
+-      <div className="bg-white rounded-3xl max-w-md w-full border border-[#E5E7EB] shadow-2xl p-6 sm:p-8 relative">
++    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3D1014]/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
++      <div className="bg-white rounded-3xl max-w-md w-full max-h-[90dvh] overflow-y-auto border border-[#E5E7EB] shadow-2xl p-6 sm:p-8 relative my-8">
+         
+         <button
+           onClick={onClose}
+diff --git a/src/components/FlightResultsModal.jsx b/src/components/FlightResultsModal.jsx
+index 8dffa244..4eeecf9d 100644
+--- a/src/components/FlightResultsModal.jsx
++++ b/src/components/FlightResultsModal.jsx
+@@ -1,4 +1,4 @@
+-import React, { useState } from 'react';
++import React, { useState, useEffect, useRef } from 'react';
+ import { X, Plane, ArrowRight, CreditCard, Smartphone, Upload, CheckCircle2, Download, Loader2, ArrowLeft, Clock, Luggage } from 'lucide-react';
+ import jsPDF from 'jspdf';
+ 
+@@ -17,6 +17,13 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
+   const [upiApp, setUpiApp] = useState('googlepay');
+   const [bookingId] = useState(() => 'FF' + Math.floor(1000000 + Math.random() * 9000000).toString().slice(0, 6).toUpperCase());
+   const [pnr] = useState(() => Math.random().toString(36).slice(2, 8).toUpperCase());
++  const payTimeoutRef = useRef(null);
++
++  useEffect(() => {
++    return () => {
++      if (payTimeoutRef.current) clearTimeout(payTimeoutRef.current);
++    };
++  }, []);
+ 
+   if (!isOpen || !flight) return null;
+ 
+@@ -30,6 +37,10 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
+   const otherCharges = Math.round(unitPrice - baseFare - taxes);
+ 
+   const resetAndClose = () => {
++    if (payTimeoutRef.current) {
++      clearTimeout(payTimeoutRef.current);
++      payTimeoutRef.current = null;
++    }
+     setStep('passengers');
+     setPassengerCount(1);
+     setPassengers([{ name: '', age: '', aadharName: '' }]);
+@@ -60,7 +71,10 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
+ 
+   const handlePay = () => {
+     setStep('processing');
+-    setTimeout(() => setStep('ticket'), 1800);
++    payTimeoutRef.current = setTimeout(() => {
++      payTimeoutRef.current = null;
++      setStep('ticket');
++    }, 1800);
+   };
+ 
+   const seatLetter = (idx) => String.fromCharCode(65 + (idx % 6)) + (12 + idx);
+@@ -235,7 +249,7 @@ export default function FlightResultsModal({ isOpen, onClose, source, destinatio
+ 
+   return (
+     <div className="fixed inset-0 z-50 bg-[#FAF7F2] overflow-y-auto animate-fade-in">
+-      <div className="max-w-3xl mx-auto min-h-screen px-4 sm:px-8 py-8">
++      <div className="max-w-3xl mx-auto min-h-dvh px-4 sm:px-8 py-8">
+ 
+         <div className="flex items-center justify-between mb-6">
+           <button
+diff --git a/src/components/Footer.jsx b/src/components/Footer.jsx
+index 768b76c2..fa344c8a 100644
+--- a/src/components/Footer.jsx
++++ b/src/components/Footer.jsx
+@@ -2,16 +2,34 @@ import React from 'react';
+ 
+ export default function Footer() {
+   return (
+-    <footer className="w-full px-6 sm:px-12 lg:px-16 py-7 flex flex-col sm:flex-row justify-between items-center text-sm sm:text-base z-30 relative font-sans max-w-[1536px] mx-auto">
+-      <span className="text-[#35979A] font-extrabold tracking-[0.22em] uppercase text-base sm:text-lg">
+-        FLYFINDER
+-      </span>
+-      <span className="text-stone-500 font-medium text-sm sm:text-base">
+-        © 2026-2027 FlyFinder Flight Intelligence Network
+-      </span>
++    <footer className="w-full font-sans">
++      <div id="about" className="w-full px-6 sm:px-12 lg:px-16 pt-10 pb-6 max-w-[1536px] mx-auto grid grid-cols-1 sm:grid-cols-2 gap-6 border-t border-stone-200/60">
++        <div>
++          <h3 className="text-[#3C1318] font-extrabold text-sm uppercase tracking-wider mb-2">About Us</h3>
++          <p className="text-stone-500 text-sm max-w-md">
++            FlyFinder is a flight fare intelligence tool that combines a live XGBoost/CatBoost
++            price ensemble with route-based tier predictions to help you spot a good deal before you book.
++          </p>
++        </div>
++        <div id="support">
++          <h3 className="text-[#3C1318] font-extrabold text-sm uppercase tracking-wider mb-2">Support</h3>
++          <p className="text-stone-500 text-sm max-w-md">
++            Questions or issues with a booking or prediction? Reach us at{' '}
++            <a href="mailto:support@flyfinder.example" className="text-[#35979A] font-semibold hover:underline">
++              support@flyfinder.example
++            </a>.
++          </p>
++        </div>
++      </div>
+ 
++      <div className="w-full px-6 sm:px-12 lg:px-16 py-7 flex flex-col sm:flex-row justify-between items-center text-sm sm:text-base z-30 relative max-w-[1536px] mx-auto border-t border-stone-200/60">
++        <span className="text-[#35979A] font-extrabold tracking-[0.22em] uppercase text-base sm:text-lg">
++          FLYFINDER
++        </span>
++        <span className="text-stone-500 font-medium text-sm sm:text-base">
++          © 2026-2027 FlyFinder Flight Intelligence Network
++        </span>
++      </div>
+     </footer>
+   );
+ }
+-
+-
+diff --git a/src/components/Globe3D.jsx b/src/components/Globe3D.jsx
+index 59a9a48d..bf167bff 100644
+--- a/src/components/Globe3D.jsx
++++ b/src/components/Globe3D.jsx
+@@ -40,31 +40,64 @@ export default function Globe3D({
+   destination, 
+   hideMarkers = false,
+   sizeScale = 1.0,
+-  shiftRightPercent = 0
++  shiftRight = false
+ }) {
+   const globeRef = useRef();
+ 
+-  // Calculated dimension based on scale
+-  const globeDimension = Math.round(1150 * sizeScale);
++  // Track viewport width so the globe's pixel dimensions never exceed what the
++  // device can actually show (a fixed px size regardless of screen would either
++  // overflow tiny phones or look comically small on large desktops).
++  const [viewportWidth, setViewportWidth] = useState(
++    typeof window !== 'undefined' ? window.innerWidth : 1280
++  );
++
++  useEffect(() => {
++    let frame;
++    const onResize = () => {
++      cancelAnimationFrame(frame);
++      frame = requestAnimationFrame(() => setViewportWidth(window.innerWidth));
++    };
++    window.addEventListener('resize', onResize);
++    return () => {
++      window.removeEventListener('resize', onResize);
++      cancelAnimationFrame(frame);
++    };
++  }, []);
++
++  // Calculated dimension based on scale, capped by viewport so it always fits
++  const desiredDimension = Math.round(1150 * sizeScale);
++  const viewportCap = viewportWidth < 480
++    ? viewportWidth * 1.35   // small phones: allow slight overflow, clipped by parent's overflow rules
++    : viewportWidth < 768
++      ? viewportWidth * 1.6  // tablets/large phones
++      : desiredDimension;    // desktop: no cap needed
++  const globeDimension = Math.round(Math.min(desiredDimension, viewportCap));
+ 
+   // Animated airplane position along the arc
+   const [planePos, setPlanePos] = useState(() => 
+     getArcPoint(source.lat, source.lng, destination.lat, destination.lng, 0)
+   );
+ 
+-  // Smooth animation loop for the airplane along the flight path arc
++  // Smooth animation loop for the airplane along the flight path arc.
++  // Throttled to ~20fps (updates ~50ms) instead of every animation frame (~60fps) to avoid
++  // recomputing/recreating the HTML overlay markers on every single frame.
+   useEffect(() => {
+     let animId;
+     let startTime = null;
++    let lastUpdate = 0;
+     const duration = 4200; // 4.2 seconds per flight loop
++    const updateIntervalMs = 50;
+ 
+     const animate = (timestamp) => {
+       if (!startTime) startTime = timestamp;
+       const elapsed = timestamp - startTime;
+-      const progress = (elapsed % duration) / duration;
+ 
+-      const pt = getArcPoint(source.lat, source.lng, destination.lat, destination.lng, progress);
+-      setPlanePos(pt);
++      if (timestamp - lastUpdate >= updateIntervalMs) {
++        lastUpdate = timestamp;
++        const progress = (elapsed % duration) / duration;
++        const pt = getArcPoint(source.lat, source.lng, destination.lat, destination.lng, progress);
++        setPlanePos(pt);
++      }
+ 
+       animId = requestAnimationFrame(animate);
+     };
+@@ -109,6 +142,17 @@ export default function Globe3D({
+         },
+         1200
+       );
++
++      // On touchscreens, drag-to-rotate on the globe traps the page-scroll
++      // gesture (a user trying to scroll past it ends up spinning the globe
++      // instead). Disable rotate/pan via touch while keeping it for mouse users.
++      const isCoarsePointer = typeof window !== 'undefined' &&
++        window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
++      const controls = globeRef.current.controls && globeRef.current.controls();
++      if (controls) {
++        controls.enableRotate = !isCoarsePointer;
++        controls.enablePan = !isCoarsePointer;
++      }
+     }
+   }, [midpoint]);
+ 
+@@ -126,26 +170,18 @@ export default function Globe3D({
+   }, [source, destination]);
+ 
+   // HTML Overlay Markers (Source, Destination + 3D Toy Airplane)
+-  const combinedHtmlData = useMemo(() => {
+-    const items = [];
++  // Static markers are memoized separately from the plane so they don't get
++  // recomputed every time the plane's animated position changes.
++  const staticMarkers = useMemo(() => {
++    if (hideMarkers) return [];
++    return [
++      { lat: source.lat, lng: source.lng, text: source.badge, alt: 0.01, isPlane: false },
++      { lat: destination.lat, lng: destination.lng, text: destination.badge, alt: 0.01, isPlane: false }
++    ];
++  }, [source, destination, hideMarkers]);
+ 
+-    // Add source and destination city markers if not hidden
+-    if (!hideMarkers) {
+-      items.push({
+-        lat: source.lat,
+-        lng: source.lng,
+-        text: source.badge,
+-        alt: 0.01,
+-        isPlane: false
+-      });
+-      items.push({
+-        lat: destination.lat,
+-        lng: destination.lng,
+-        text: destination.badge,
+-        alt: 0.01,
+-        isPlane: false
+-      });
+-    }
++  const combinedHtmlData = useMemo(() => {
++    const items = [...staticMarkers];
+ 
+     // Add 3D Toy Airplane marker
+     if (planePos) {
+@@ -159,10 +195,10 @@ export default function Globe3D({
+     }
+ 
+     return items;
+-  }, [source, destination, hideMarkers, planePos]);
++  }, [staticMarkers, planePos]);
+ 
+-  // Dynamic Shift Class
+-  const shiftClass = shiftRightPercent > 0 
++  // Dynamic Shift Class — shifts the globe further right when `shiftRight` is true
++  const shiftClass = shiftRight
+     ? 'translate-x-24 sm:translate-x-36 lg:translate-x-48 xl:translate-x-60' 
+     : 'translate-x-16 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44';
+ 
+@@ -174,7 +210,7 @@ export default function Globe3D({
+ 
+       {/* 3D Globe Canvas Container */}
+       <div 
+-        style={{ width: `${globeDimension}px`, height: `${globeDimension}px` }}
++        style={{ width: `${globeDimension}px`, height: `${globeDimension}px`, touchAction: 'pan-y' }}
+         className={`rounded-full relative cursor-grab active:cursor-grabbing overflow-visible flex items-center justify-center ${shiftClass}`}
+       >
+         <Globe
+diff --git a/src/components/HeroSection.jsx b/src/components/HeroSection.jsx
+index e23458bb..76442e8b 100644
+--- a/src/components/HeroSection.jsx
++++ b/src/components/HeroSection.jsx
+@@ -23,13 +23,13 @@ export default function HeroSection({
+       </div>
+ 
+       {/* 2. Main Headline (+80% size) */}
+-      <h1 className="text-6xl sm:text-8xl lg:text-9xl xl:text-[124px] font-serif text-[#3C1318] leading-[1.02] tracking-tight mb-8">
++      <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl xl:text-[124px] font-serif text-[#3C1318] leading-[1.05] sm:leading-[1.02] tracking-tight mb-8">
+         Where will <br />
+         <span className="italic font-normal">you go next?</span>
+       </h1>
+ 
+       {/* 3. Subtitle Paragraph (+80% size) */}
+-      <p className="text-[#525252] max-w-2xl text-xl sm:text-2xl lg:text-3xl leading-relaxed mb-10 sm:mb-14 font-medium">
++      <p className="text-[#525252] max-w-2xl text-base sm:text-xl lg:text-2xl xl:text-3xl leading-relaxed mb-10 sm:mb-14 font-medium">
+         Select origin and destination to generate live flight schedules <br className="hidden sm:inline" />
+         &amp; fare forecasts with AI precision.
+       </p>
+@@ -38,7 +38,7 @@ export default function HeroSection({
+       <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-search-card border border-stone-200/80 flex flex-col lg:flex-row items-stretch lg:items-center gap-4 sm:gap-6 w-full max-w-6xl relative z-30">
+         
+         {/* FROM */}
+-        <div className="flex-1 min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
++        <div className="flex-1 lg:min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
+           <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
+             <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">FROM</span>
+             <span className="text-xs sm:text-sm font-medium text-stone-500">(SOURCE)</span>
+@@ -72,7 +72,7 @@ export default function HeroSection({
+         </div>
+ 
+         {/* TO */}
+-        <div className="flex-1 min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
++        <div className="flex-1 lg:min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
+           <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
+             <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">TO</span>
+             <span className="text-xs sm:text-sm font-medium text-stone-500">(DESTINATION)</span>
+@@ -120,9 +120,9 @@ export default function HeroSection({
+           <button
+             onClick={onSearch}
+             type="button"
+-            className="w-full lg:w-auto bg-[#3C1318] hover:bg-[#280C10] px-10 py-5 rounded-2xl text-white font-bold text-xl sm:text-2xl flex items-center justify-center space-x-3 transition-all shadow-md active:scale-95 group cursor-pointer"
++            className="w-full lg:w-auto bg-[#3C1318] hover:bg-[#280C10] px-6 py-4 sm:px-10 sm:py-5 rounded-2xl text-white font-bold text-lg sm:text-2xl flex items-center justify-center space-x-3 transition-all shadow-md active:scale-95 group cursor-pointer"
+           >
+-            <Search className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
++            <Search className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:scale-110 transition-transform" />
+             <span>Search</span>
+           </button>
+         </div>
+diff --git a/src/components/LoginModal.jsx b/src/components/LoginModal.jsx
+index d1fec800..ba898936 100644
+--- a/src/components/LoginModal.jsx
++++ b/src/components/LoginModal.jsx
+@@ -23,8 +23,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
+   };
+ 
+   return (
+-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3D1014]/65 backdrop-blur-sm animate-fade-in">
+-      <div className="bg-white rounded-3xl max-w-md w-full border border-[#E5E7EB] shadow-2xl p-6 sm:p-8 relative">
++    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3D1014]/65 backdrop-blur-sm animate-fade-in overflow-y-auto">
++      <div className="bg-white rounded-3xl max-w-md w-full max-h-[90dvh] overflow-y-auto border border-[#E5E7EB] shadow-2xl p-6 sm:p-8 relative my-8">
+         
+         <button
+           onClick={onClose}
+diff --git a/src/components/MLInsightsModal.jsx b/src/components/MLInsightsModal.jsx
+index 0c85cf53..c901b0a1 100644
+--- a/src/components/MLInsightsModal.jsx
++++ b/src/components/MLInsightsModal.jsx
+@@ -56,8 +56,8 @@ export default function MLInsightsModal({ isOpen, onClose }) {
+   ];
+ 
+   return (
+-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2E0C10]/65 backdrop-blur-sm animate-fade-in">
+-      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 shadow-2xl p-6 sm:p-8 relative">
++    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2E0C10]/65 backdrop-blur-sm animate-fade-in overflow-y-auto">
++      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90dvh] overflow-y-auto border border-gray-200 shadow-2xl p-6 sm:p-8 relative my-8">
+         
+         {/* Close Button */}
+         <button
+diff --git a/src/components/Navbar.jsx b/src/components/Navbar.jsx
+index 00ccfd37..e8891a93 100644
+--- a/src/components/Navbar.jsx
++++ b/src/components/Navbar.jsx
+@@ -1,25 +1,26 @@
+ import React from 'react';
+-import { Plane } from 'lucide-react';
++import { Plane, UserCircle2, LogOut } from 'lucide-react';
+ 
+-export default function Navbar({ onGoHome, onOpenAccountModal, onOpenLoginModal }) {
++export default function Navbar({ onGoHome, onOpenAccountModal, onOpenLoginModal, onOpenBlueprint, user, onLogout }) {
+   return (
+-    <header className="w-full bg-[#FAF7F2] py-6 sm:py-8 px-6 sm:px-12 lg:px-20 flex items-center justify-between z-40 relative max-w-[1920px] mx-auto border-b border-stone-200/50">
++    <header className="w-full bg-[#FAF7F2] py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-12 xl:px-20 flex items-center justify-between gap-3 z-40 relative max-w-[1920px] mx-auto border-b border-stone-200/50">
+       
+       {/* Left: Logo (+50% size) */}
+-      <div 
++      <button
++        type="button"
+         onClick={onGoHome}
+-        className="flex items-center space-x-3.5 cursor-pointer group shrink-0"
++        className="flex items-center space-x-2 sm:space-x-3.5 cursor-pointer group shrink-0 bg-transparent border-0 p-0 text-left min-w-0"
+       >
+-        <div className="text-[#3C1318] transform rotate-45 group-hover:scale-110 transition-transform">
+-          <Plane className="w-9 h-9 sm:w-11 sm:h-11 fill-current" />
++        <div className="text-[#3C1318] transform rotate-45 group-hover:scale-110 transition-transform shrink-0">
++          <Plane className="w-6 h-6 sm:w-9 sm:h-9 lg:w-11 lg:h-11 fill-current" />
+         </div>
+-        <span className="font-extrabold text-3xl sm:text-4xl lg:text-5xl tracking-tight text-[#3C1318] font-sans">
++        <span className="font-extrabold text-xl sm:text-3xl lg:text-4xl xl:text-5xl tracking-tight text-[#3C1318] font-sans truncate">
+           FlyFinder
+         </span>
+-      </div>
++      </button>
+ 
+       {/* Right: Nav Links & Account Button (+50% size) */}
+-      <div className="flex items-center space-x-8 sm:space-x-12 shrink-0">
++      <div className="flex items-center space-x-3 sm:space-x-8 lg:space-x-12 shrink-0">
+         <nav className="hidden sm:flex items-center space-x-8 lg:space-x-10 text-lg sm:text-xl font-bold text-[#3C1318]">
+           <a href="#about" className="hover:opacity-75 transition-opacity">
+             About Us
+@@ -27,20 +28,50 @@ export default function Navbar({ onGoHome, onOpenAccountModal, onOpenLoginModal
+           <a href="#support" className="hover:opacity-75 transition-opacity">
+             Support
+           </a>
++          {onOpenBlueprint && (
++            <button
++              onClick={onOpenBlueprint}
++              className="hover:opacity-75 transition-opacity font-bold cursor-pointer"
++            >
++              ML Workbench
++            </button>
++          )}
++          {!user && (
++            <button
++              onClick={onOpenLoginModal}
++              className="hover:opacity-75 transition-opacity font-bold cursor-pointer"
++            >
++              Login
++            </button>
++          )}
++        </nav>
++
++        {user ? (
++          <div className="flex items-center space-x-2 sm:space-x-4">
++            <div className="hidden sm:flex items-center space-x-2.5 bg-white border border-stone-200 rounded-full pl-3 pr-4 py-2 shadow-sm">
++              <UserCircle2 className="w-7 h-7 text-[#3C1318]" />
++              <div className="leading-tight text-left">
++                <div className="text-sm font-extrabold text-[#3C1318]">{user.name}</div>
++                <div className="text-[11px] font-bold text-emerald-600">{user.tier}</div>
++              </div>
++            </div>
++            <button
++              onClick={onLogout}
++              title="Log out"
++              className="flex items-center space-x-1.5 sm:space-x-2 bg-[#3C1318] hover:bg-[#280C10] text-white px-3.5 sm:px-7 py-2.5 sm:py-4 rounded-full font-bold text-xs sm:text-lg transition-all duration-200 shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
++            >
++              <LogOut className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
++              <span>Log Out</span>
++            </button>
++          </div>
++        ) : (
+           <button
+-            onClick={onOpenLoginModal}
+-            className="hover:opacity-75 transition-opacity font-bold cursor-pointer"
++            onClick={onOpenAccountModal}
++            className="bg-[#3C1318] hover:bg-[#280C10] text-white px-3.5 sm:px-10 py-2.5 sm:py-4 rounded-full font-bold text-xs sm:text-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+           >
+-            Login
++            Create Account
+           </button>
+-        </nav>
+-
+-        <button
+-          onClick={onOpenAccountModal}
+-          className="bg-[#3C1318] hover:bg-[#280C10] text-white px-8 sm:px-10 py-3.5 sm:py-4 rounded-full font-bold text-base sm:text-xl transition-all duration-200 shadow-md active:scale-95 cursor-pointer"
+-        >
+-          Create Account
+-        </button>
++        )}
+       </div>
+ 
+     </header>
+diff --git a/src/data/airports.js b/src/data/airports.js
+index 2dc4a432..6a1a04d1 100644
+--- a/src/data/airports.js
++++ b/src/data/airports.js
+@@ -62,15 +62,6 @@ export const AIRPORTS = [
+     lng: 78.4294,
+     badge: "HYD • Hyderabad"
+   },
+-  {
+-    code: "AMD",
+-    city: "Ahmedabad",
+-    name: "Sardar Vallabhbhai Patel International",
+-    country: "India",
+-    lat: 23.0734,
+-    lng: 72.6266,
+-    badge: "AMD • Ahmedabad"
+-  }
+ ];
+ 
+ export function getAirportByCode(code) {
+diff --git a/src/index.css b/src/index.css
+index f13f209f..6200e093 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1,6 +1,16 @@
+ @import "tailwindcss";
+ 
+ @layer base {
++  html {
++    overflow-x: hidden;
++    /* Prevent Safari/iOS from auto-inflating text size on orientation change */
++    -webkit-text-size-adjust: 100%;
++    text-size-adjust: 100%;
++    /* Firefox custom scrollbar (::-webkit-scrollbar below covers Chrome/Safari/Edge) */
++    scrollbar-width: thin;
++    scrollbar-color: rgba(60, 19, 24, 0.2) #FAF7F2;
++  }
++
+   body {
+     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+     background-color: #FAF7F2;
+@@ -8,11 +18,30 @@
+     overflow-x: hidden;
+     margin: 0;
+     padding: 0;
++    /* Respect the notch/home-indicator safe areas on iPhone (no-op elsewhere) */
++    padding-left: env(safe-area-inset-left);
++    padding-right: env(safe-area-inset-right);
++    /* Remove the gray tap-highlight flash on mobile Chrome/Safari */
++    -webkit-tap-highlight-color: transparent;
+   }
+ 
+   h1, .font-serif-headline {
+     font-family: 'Playfair Display', Georgia, serif;
+   }
++
++  /* Prevent iOS Safari from zooming the page in when a form field is focused
++     (it only zooms when the focused input's font-size is below 16px) */
++  @media (max-width: 767px) {
++    input, select, textarea {
++      font-size: 16px;
++    }
++  }
++
++  @media (prefers-reduced-motion: no-preference) {
++    html {
++      scroll-behavior: smooth;
++    }
++  }
+ }
+ 
+ /* Design Tokens from Reference Photo */
+@@ -57,10 +86,10 @@
+   background: #FAF7F2;
+ }
+ ::-webkit-scrollbar-thumb {
+-  background: #3C1318/20;
++  background: rgba(60, 19, 24, 0.2);
+   border-radius: 4px;
+ }
+ ::-webkit-scrollbar-thumb:hover {
+-  background: #3C1318/40;
++  background: rgba(60, 19, 24, 0.4);
+ }
+ 
+diff --git a/src/utils/farePredictor.js b/src/utils/farePredictor.js
+index 79c9650b..25a14e87 100644
+--- a/src/utils/farePredictor.js
++++ b/src/utils/farePredictor.js
+@@ -1,5 +1,4 @@
+ // src/utils/farePredictor.js
+-import { calculateDistanceKm } from '../data/airports';
+ 
+ // Dynamic API_BASE — uses Render URL if configured, otherwise falls back to local port 5001 or fallback mock
+ const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+@@ -9,6 +8,27 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
+ // Only these cities exist in the trained dataset — anything else is flagged as unsupported
+ const KNOWN_CITIES = new Set(["Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore", "Cochin", "Hyderabad"]);
+ 
++// Default background colors for airline logo badges (used when backend doesn't supply one)
++const AIRLINE_COLORS = {
++  "IndiGo": "#0B2545",
++  "SpiceJet": "#D90429",
++  "Vistara": "#4A154B",
++  "Air India": "#E63946",
++  "Akasa Air": "#FF6B35",
++  "Go First": "#0077B6",
++};
++
++// Parses an "hh:mm AM/PM" time string into a 24-hour integer hour (falls back to 0)
++function parseHourFromTime(timeStr) {
++  if (!timeStr || typeof timeStr !== "string") return 0;
++  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
++  if (!match) return 0;
++  let hour = parseInt(match[1], 10) % 12;
++  const isPM = match[3].toUpperCase() === "PM";
++  if (isPM) hour += 12;
++  return hour;
++}
++
+ export async function predictCategorizedFlightFares(source, destination, date) {
+   let sourceCity = source.city === "Bengaluru" ? "Banglore" : source.city;
+   let destCity = destination.city === "Bengaluru" ? "Banglore" : destination.city;
+@@ -42,8 +62,10 @@ export async function predictCategorizedFlightFares(source, destination, date) {
+     const allFlights = data.flights.map(f => ({
+       id: f.id,
+       code: f.logo,
++      logoBg: AIRLINE_COLORS[f.airline] || "#3C1318",
+       airline: f.airline,
+       depTime: f.depTime,
++      depHour: parseHourFromTime(f.depTime),
+       arrTime: f.arrTime,
+       duration: f.duration,
+       stopsLabel: f.stops,
+@@ -85,51 +107,6 @@ export async function predictCategorizedFlightFares(source, destination, date) {
+   }
+ }
+ 
+-export function predictFlightFares(source, destination, dateString) {
+-  const dist = calculateDistanceKm(source.lat, source.lng, destination.lat, destination.lng);
+-  const isInternational = dist > 2200;
+-
+-  const slots = [
+-    { dep: "06:15 AM", label: "Early Morning", trend: "lowest", airline: "IndiGo", code: "6E" },
+-    { dep: "10:30 AM", label: "Morning", trend: "best_value", airline: "Vistara", code: "UK" },
+-    { dep: "04:45 PM", label: "Evening", trend: "rising_soon", airline: "Air India", code: "AI" },
+-    { dep: "08:20 PM", label: "Night", trend: "stable", airline: "SpiceJet", code: "SG" }
+-  ];
+-
+-  const flights = slots.map((slot, idx) => {
+-    const baseFare = (isInternational ? 11500 : 2600) + (dist * 3.4);
+-    const finalFareRaw = Math.round(baseFare * (1 + idx * 0.1));
+-
+-    return {
+-      id: `FL-${idx + 101}`,
+-      airline: slot.airline,
+-      logo: slot.code,
+-      flightNo: `${slot.code}-${100 + idx * 12}`,
+-      depTime: slot.dep,
+-      arrTime: "08:30 AM",
+-      duration: `${Math.floor(dist / 400)}h ${(dist % 400) % 60}m`,
+-      stops: dist > 3500 ? "1 Stop" : "Non-stop",
+-      predictedFare: `₹ ${finalFareRaw.toLocaleString('en-IN')}`,
+-      numericFare: finalFareRaw,
+-      confidence: "Heuristic Estimate",
+-      trend: slot.trend,
+-      aircraft: "Airbus A320neo"
+-    };
+-  });
+-
+-  return {
+-    flights,
+-    recommendation: {
+-      status: "HEURISTIC ESTIMATE (OFFLINE)",
+-      badgeBg: "bg-amber-100 text-amber-800 border border-amber-300",
+-      message: "Distance-based estimate active (Model offline).",
+-      confidence: "Distance Heuristic"
+-    },
+-    distanceKm: dist,
+-    isHeuristicEstimate: true
+-  };
+-}
+-
+ function fallbackCategorizedFares(source, destination) {
+   const lowTier = [
+     { id: '6e-1', code: '6E', logoBg: '#0B2545', airline: 'IndiGo', depTime: '06:20 AM', arrTime: '08:10 AM', duration: '1h 50m', stopsLabel: 'Non-stop', formattedPrice: '₹ 4,290', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' },
+@@ -146,5 +123,14 @@ function fallbackCategorizedFares(source, destination) {
+     { id: 'uk-2', code: 'UK', logoBg: '#451343', airline: 'Vistara', depTime: '10:40 AM', arrTime: '09:30 PM', duration: '10h 50m', stopsLabel: '2 Stops', formattedPrice: '₹ 21,600', isOfflineFallback: true, offlineNotice: 'Offline Estimate — Model Unavailable' }
+   ];
+ 
+-  return { lowTier, mediumTier, highTier, unsupportedRoute: false, isOfflineFallback: true, offlineNotice: "Offline Estimate — Model Unavailable" };
++  const withDepHour = (tier) => tier.map(f => ({ ...f, depHour: parseHourFromTime(f.depTime) }));
++
++  return {
++    lowTier: withDepHour(lowTier),
++    mediumTier: withDepHour(mediumTier),
++    highTier: withDepHour(highTier),
++    unsupportedRoute: false,
++    isOfflineFallback: true,
++    offlineNotice: "Offline Estimate — Model Unavailable"
++  };
+ }

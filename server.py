@@ -191,7 +191,10 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(resp).encode('utf-8'))
         else:
             self.send_response(404)
+            self.send_header('Content-Type', 'application/json')
+            self._send_cors_headers()
             self.end_headers()
+            self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode('utf-8'))
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -288,8 +291,32 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"success": False, "error": f"Unsupported destination '{raw_dest}'. Supported: {sorted(list(SUPPORTED_CITIES))}."}).encode('utf-8'))
                 return
 
-            day = int(get_param(data, ['day', 'journey_day'], 15))
-            month = int(get_param(data, ['month', 'journey_month'], 9))
+            try:
+                day = int(get_param(data, ['day', 'journey_day'], 15))
+                month = int(get_param(data, ['month', 'journey_month'], 9))
+            except (ValueError, TypeError):
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": "day and month must be valid integers."}).encode('utf-8'))
+                return
+
+            if not (1 <= day <= 31):
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": f"day must be 1-31, got {day}."}).encode('utf-8'))
+                return
+
+            if not (1 <= month <= 12):
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self._send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": f"month must be 1-12, got {month}."}).encode('utf-8'))
+                return
 
             airlines_info = [
                 {"code": "6E", "name": "IndiGo", "logo_bg": "#0B2545", "text_color": "#059669", "tier_hint": "Low", "dep": "06:20 AM", "dep_h": 6, "dur": 110, "arr": "08:10 AM", "stops": "Non-stop", "stop_num": 0, "info": "No Info"},

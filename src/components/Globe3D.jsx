@@ -40,31 +40,64 @@ export default function Globe3D({
   destination, 
   hideMarkers = false,
   sizeScale = 1.0,
-  shiftRightPercent = 0
+  shiftRight = false
 }) {
   const globeRef = useRef();
 
-  // Calculated dimension based on scale
-  const globeDimension = Math.round(1150 * sizeScale);
+  // Track viewport width so the globe's pixel dimensions never exceed what the
+  // device can actually show (a fixed px size regardless of screen would either
+  // overflow tiny phones or look comically small on large desktops).
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1280
+  );
+
+  useEffect(() => {
+    let frame;
+    const onResize = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setViewportWidth(window.innerWidth));
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  // Calculated dimension based on scale, capped by viewport so it always fits
+  const desiredDimension = Math.round(1150 * sizeScale);
+  const viewportCap = viewportWidth < 480
+    ? viewportWidth * 1.35   // small phones: allow slight overflow, clipped by parent's overflow rules
+    : viewportWidth < 768
+      ? viewportWidth * 1.6  // tablets/large phones
+      : desiredDimension;    // desktop: no cap needed
+  const globeDimension = Math.round(Math.min(desiredDimension, viewportCap));
 
   // Animated airplane position along the arc
   const [planePos, setPlanePos] = useState(() => 
     getArcPoint(source.lat, source.lng, destination.lat, destination.lng, 0)
   );
 
-  // Smooth animation loop for the airplane along the flight path arc
+  // Smooth animation loop for the airplane along the flight path arc.
+  // Throttled to ~20fps (updates ~50ms) instead of every animation frame (~60fps) to avoid
+  // recomputing/recreating the HTML overlay markers on every single frame.
   useEffect(() => {
     let animId;
     let startTime = null;
+    let lastUpdate = 0;
     const duration = 4200; // 4.2 seconds per flight loop
+    const updateIntervalMs = 50;
 
     const animate = (timestamp) => {
       if (!startTime) startTime = timestamp;
       const elapsed = timestamp - startTime;
-      const progress = (elapsed % duration) / duration;
 
-      const pt = getArcPoint(source.lat, source.lng, destination.lat, destination.lng, progress);
-      setPlanePos(pt);
+      if (timestamp - lastUpdate >= updateIntervalMs) {
+        lastUpdate = timestamp;
+        const progress = (elapsed % duration) / duration;
+        const pt = getArcPoint(source.lat, source.lng, destination.lat, destination.lng, progress);
+        setPlanePos(pt);
+      }
 
       animId = requestAnimationFrame(animate);
     };
@@ -109,6 +142,17 @@ export default function Globe3D({
         },
         1200
       );
+
+      // On touchscreens, drag-to-rotate on the globe traps the page-scroll
+      // gesture (a user trying to scroll past it ends up spinning the globe
+      // instead). Disable rotate/pan via touch while keeping it for mouse users.
+      const isCoarsePointer = typeof window !== 'undefined' &&
+        window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      const controls = globeRef.current.controls && globeRef.current.controls();
+      if (controls) {
+        controls.enableRotate = !isCoarsePointer;
+        controls.enablePan = !isCoarsePointer;
+      }
     }
   }, [midpoint]);
 
@@ -126,26 +170,18 @@ export default function Globe3D({
   }, [source, destination]);
 
   // HTML Overlay Markers (Source, Destination + 3D Toy Airplane)
-  const combinedHtmlData = useMemo(() => {
-    const items = [];
+  // Static markers are memoized separately from the plane so they don't get
+  // recomputed every time the plane's animated position changes.
+  const staticMarkers = useMemo(() => {
+    if (hideMarkers) return [];
+    return [
+      { lat: source.lat, lng: source.lng, text: source.badge, alt: 0.01, isPlane: false },
+      { lat: destination.lat, lng: destination.lng, text: destination.badge, alt: 0.01, isPlane: false }
+    ];
+  }, [source, destination, hideMarkers]);
 
-    // Add source and destination city markers if not hidden
-    if (!hideMarkers) {
-      items.push({
-        lat: source.lat,
-        lng: source.lng,
-        text: source.badge,
-        alt: 0.01,
-        isPlane: false
-      });
-      items.push({
-        lat: destination.lat,
-        lng: destination.lng,
-        text: destination.badge,
-        alt: 0.01,
-        isPlane: false
-      });
-    }
+  const combinedHtmlData = useMemo(() => {
+    const items = [...staticMarkers];
 
     // Add 3D Toy Airplane marker
     if (planePos) {
@@ -159,10 +195,10 @@ export default function Globe3D({
     }
 
     return items;
-  }, [source, destination, hideMarkers, planePos]);
+  }, [staticMarkers, planePos]);
 
-  // Dynamic Shift Class
-  const shiftClass = shiftRightPercent > 0 
+  // Dynamic Shift Class — shifts the globe further right when `shiftRight` is true
+  const shiftClass = shiftRight
     ? 'translate-x-24 sm:translate-x-36 lg:translate-x-48 xl:translate-x-60' 
     : 'translate-x-16 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44';
 
@@ -174,7 +210,7 @@ export default function Globe3D({
 
       {/* 3D Globe Canvas Container */}
       <div 
-        style={{ width: `${globeDimension}px`, height: `${globeDimension}px` }}
+        style={{ width: `${globeDimension}px`, height: `${globeDimension}px`, touchAction: 'pan-y' }}
         className={`rounded-full relative cursor-grab active:cursor-grabbing overflow-visible flex items-center justify-center ${shiftClass}`}
       >
         <Globe
