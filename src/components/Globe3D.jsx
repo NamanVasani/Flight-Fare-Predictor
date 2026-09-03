@@ -40,7 +40,8 @@ export default function Globe3D({
   destination, 
   hideMarkers = false,
   sizeScale = 1.0,
-  shiftRight = false
+  shiftRight = false,
+  compact = false
 }) {
   const globeRef = useRef();
 
@@ -65,7 +66,7 @@ export default function Globe3D({
   }, []);
 
   // Calculated dimension based on scale, capped by viewport so it always fits
-  const desiredDimension = Math.round(1250 * sizeScale);
+  const desiredDimension = Math.round((compact ? 550 : 1250) * sizeScale);
   const viewportCap = viewportWidth < 480
     ? viewportWidth * 1.35   // small phones: allow slight overflow, clipped by parent's overflow rules
     : viewportWidth < 768
@@ -200,10 +201,12 @@ export default function Globe3D({
   // Dynamic Shift Class — shifts the globe further right when `shiftRight` is true
   const shiftClass = shiftRight
     ? 'translate-x-24 sm:translate-x-36 lg:translate-x-48 xl:translate-x-60' 
-    : 'translate-x-16 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44';
+    : compact
+      ? 'translate-x-0'
+      : 'translate-x-16 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44';
 
   return (
-    <div className="relative w-full h-[750px] sm:h-[900px] lg:h-[1050px] xl:h-[1150px] flex items-center justify-end pointer-events-auto overflow-visible my-auto">
+    <div className={`relative w-full flex items-center ${compact ? 'justify-start' : 'justify-end'} pointer-events-auto overflow-visible my-auto ${compact ? 'h-[380px] sm:h-[420px] md:h-[460px] lg:h-[500px] xl:h-[540px]' : 'h-[750px] sm:h-[900px] lg:h-[1050px] xl:h-[1150px]'}`}>
       
       {/* Soft Cyan Atmospheric Halo behind Globe */}
       <div className={`absolute w-[800px] h-[800px] sm:w-[1000px] sm:h-[1000px] lg:w-[1350px] lg:h-[1350px] rounded-full bg-[#00F2FE]/18 blur-3xl pointer-events-none -z-10 ${shiftClass}`}></div>
