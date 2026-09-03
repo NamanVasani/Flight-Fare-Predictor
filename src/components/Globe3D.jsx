@@ -211,8 +211,11 @@ export default function Globe3D({
   return (
     <div className={`relative w-full flex items-center ${compact ? 'justify-start' : 'justify-end'} pointer-events-auto overflow-visible my-auto ${compact ? 'h-[380px] sm:h-[420px] md:h-[460px] lg:h-[500px] xl:h-[540px]' : 'h-[750px] sm:h-[900px] lg:h-[1050px] xl:h-[1150px]'}`}>
       
-      {/* Soft Cyan Atmospheric Halo behind Globe */}
-      <div className={`absolute w-[800px] h-[800px] sm:w-[1000px] sm:h-[1000px] lg:w-[1350px] lg:h-[1350px] rounded-full bg-[#00F2FE]/18 blur-3xl pointer-events-none -z-10 ${shiftClass}`}></div>
+      {/* Soft Cyan Atmospheric Halo behind Globe — sized relative to the actual globe so it stays contained around the earth */}
+      <div
+        className={`absolute rounded-full bg-[#00F2FE]/18 blur-2xl pointer-events-none -z-10 ${shiftClass}`}
+        style={{ width: `${Math.round(globeDimension * 1.12)}px`, height: `${Math.round(globeDimension * 1.12)}px` }}
+      ></div>
 
       {/* 3D Globe Canvas Container */}
       <div 
