@@ -6,3 +6,6 @@ catboost_info/
 .venv/
 .venv/
 .venv/
+
+# Local Netlify folder
+.netlify
