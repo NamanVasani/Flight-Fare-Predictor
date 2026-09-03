@@ -209,7 +209,10 @@ export default function Globe3D({
       : 'translate-x-16 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44';
 
   return (
-    <div className={`relative w-full flex items-center ${compact ? 'justify-start' : 'justify-end'} pointer-events-auto overflow-visible my-auto ${compact ? 'h-[380px] sm:h-[420px] md:h-[460px] lg:h-[500px] xl:h-[540px]' : 'h-[750px] sm:h-[900px] lg:h-[1050px] xl:h-[1150px]'}`}>
+    <div
+      className={`relative w-full flex items-center ${compact ? 'justify-start' : 'justify-end'} pointer-events-auto overflow-visible my-auto`}
+      style={{ minHeight: `${Math.round(globeDimension * 1.12)}px` }}
+    >
       
       {/* Soft Cyan Atmospheric Halo behind Globe — sized relative to the actual globe so it stays contained around the earth */}
       <div
