@@ -66,12 +66,15 @@ export default function Globe3D({
   }, []);
 
   // Calculated dimension based on scale, capped by viewport so it always fits
+  // without overlapping adjacent content (text column) at any screen size.
   const desiredDimension = Math.round((compact ? 550 : 1250) * sizeScale);
   const viewportCap = viewportWidth < 480
-    ? viewportWidth * 1.35   // small phones: allow slight overflow, clipped by parent's overflow rules
+    ? viewportWidth * 0.9    // small phones: near full-width, single column
     : viewportWidth < 768
-      ? viewportWidth * 1.6  // tablets/large phones
-      : desiredDimension;    // desktop: no cap needed
+      ? viewportWidth * 0.78 // tablets/large phones: single column, mostly full width
+      : viewportWidth < 1024
+        ? viewportWidth * 0.7  // small laptops just under the 2-column breakpoint
+        : viewportWidth * 0.48; // desktop 2-column layout: globe gets its own half
   const globeDimension = Math.round(Math.min(desiredDimension, viewportCap));
 
   // Animated airplane position along the arc
@@ -200,7 +203,7 @@ export default function Globe3D({
 
   // Dynamic Shift Class — shifts the globe further right when `shiftRight` is true
   const shiftClass = shiftRight
-    ? 'translate-x-24 sm:translate-x-36 lg:translate-x-48 xl:translate-x-60' 
+    ? 'translate-x-20 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44' 
     : compact
       ? 'translate-x-0'
       : 'translate-x-16 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44';
