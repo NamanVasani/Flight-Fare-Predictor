@@ -1,0 +1,202 @@
+diff --git a/server.py b/server.py
+index df8532f4..4d50c968 100644
+--- a/server.py
++++ b/server.py
+@@ -5,6 +5,7 @@ import joblib
+ import numpy as np
+ import pandas as pd
+ import os
++import calendar
+ 
+ PORT = int(os.environ.get("PORT", 5001))
+ 
+@@ -19,20 +20,31 @@ classes = joblib.load(os.path.join(MODEL_DIR, 'label_encoder_classes.pkl'))
+ 
+ # Combined supported cities (all cities that appear in training data)
+ SUPPORTED_CITIES = {"Delhi", "Kolkata", "Mumbai", "Chennai", "Banglore", "Cochin", "Hyderabad"}
++_SUPPORTED_CITIES_LOWER = {c.lower(): c for c in SUPPORTED_CITIES}
+ 
+ CITY_ALIASES = {
+-    "New Delhi": "Delhi",
+-    "Bengaluru": "Banglore",
+-    "Bangalore": "Banglore",
+-    "DEL": "Delhi",
+-    "COK": "Cochin",
+-    "BOM": "Mumbai",
+-    "CCU": "Kolkata",
+-    "MAA": "Chennai",
+-    "HYD": "Hyderabad",
+-    "BLR": "Banglore",
++    "new delhi": "Delhi",
++    "bengaluru": "Banglore",
++    "bangalore": "Banglore",
++    "del": "Delhi",
++    "cok": "Cochin",
++    "bom": "Mumbai",
++    "ccu": "Kolkata",
++    "maa": "Chennai",
++    "hyd": "Hyderabad",
++    "blr": "Banglore",
+ }
+ 
++def normalize_city(raw):
++    """Case/whitespace-insensitive city lookup: exact city name, alias, or IATA code."""
++    cleaned = str(raw).strip()
++    lowered = cleaned.lower()
++    if lowered in _SUPPORTED_CITIES_LOWER:
++        return _SUPPORTED_CITIES_LOWER[lowered]
++    if lowered in CITY_ALIASES:
++        return CITY_ALIASES[lowered]
++    return cleaned
++
+ INFO_MAP = {
+     'no info': 'No Info',
+     'no_info': 'No Info',
+@@ -69,8 +81,8 @@ def validate_predict_inputs(data):
+     if raw_source is None or raw_dest is None or raw_airline is None:
+         return False, "Missing required fields: source, destination, and airline must be specified."
+ 
+-    norm_source = CITY_ALIASES.get(str(raw_source).strip(), str(raw_source).strip())
+-    norm_dest = CITY_ALIASES.get(str(raw_dest).strip(), str(raw_dest).strip())
++    norm_source = normalize_city(raw_source)
++    norm_dest = normalize_city(raw_dest)
+ 
+     # Use combined city set for symmetric validation
+     if norm_source not in SUPPORTED_CITIES:
+@@ -79,6 +91,9 @@ def validate_predict_inputs(data):
+     if norm_dest not in SUPPORTED_CITIES:
+         return False, f"Unsupported destination city '{raw_dest}'. Supported: {sorted(list(SUPPORTED_CITIES))}."
+ 
++    if norm_source == norm_dest:
++        return False, "Source and destination cannot be the same city."
++
+     try:
+         dep_hour = int(get_param(data, ['dep_hour', 'depHour', 'dep_time', 'depTime'], -99))
+         duration = int(get_param(data, ['duration_mins', 'durationMins', 'duration', 'duration_minutes', 'durationMinutes'], -99))
+@@ -94,10 +109,11 @@ def validate_predict_inputs(data):
+         return False, f"duration_mins must be 20–1800, got {duration}."
+     if not (0 <= stops <= 5):
+         return False, f"stops must be 0–5, got {stops}."
+-    if not (1 <= day <= 31):
+-        return False, f"day must be 1–31, got {day}."
+     if not (1 <= month <= 12):
+         return False, f"month must be 1–12, got {month}."
++    days_in_month = calendar.monthrange(2026, month)[1]
++    if not (1 <= day <= days_in_month):
++        return False, f"day must be 1–{days_in_month} for month {month}, got {day}."
+ 
+     additional_info = get_param(data, ['additional_info', 'additionalInfo', 'Additional_Info', 'additional_Info'], 'No Info')
+ 
+@@ -272,8 +288,8 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
+                 self.wfile.write(json.dumps({"success": False, "error": "Missing source or destination."}).encode('utf-8'))
+                 return
+ 
+-            norm_source = CITY_ALIASES.get(str(raw_source).strip(), str(raw_source).strip())
+-            norm_dest = CITY_ALIASES.get(str(raw_dest).strip(), str(raw_dest).strip())
++            norm_source = normalize_city(raw_source)
++            norm_dest = normalize_city(raw_dest)
+ 
+             if norm_source not in SUPPORTED_CITIES:
+                 self.send_response(400)
+@@ -291,6 +307,14 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
+                 self.wfile.write(json.dumps({"success": False, "error": f"Unsupported destination '{raw_dest}'. Supported: {sorted(list(SUPPORTED_CITIES))}."}).encode('utf-8'))
+                 return
+ 
++            if norm_source == norm_dest:
++                self.send_response(400)
++                self.send_header('Content-Type', 'application/json')
++                self._send_cors_headers()
++                self.end_headers()
++                self.wfile.write(json.dumps({"success": False, "error": "Source and destination cannot be the same city."}).encode('utf-8'))
++                return
++
+             try:
+                 day = int(get_param(data, ['day', 'journey_day'], 15))
+                 month = int(get_param(data, ['month', 'journey_month'], 9))
+@@ -302,20 +326,21 @@ class PredictHandler(http.server.BaseHTTPRequestHandler):
+                 self.wfile.write(json.dumps({"success": False, "error": "day and month must be valid integers."}).encode('utf-8'))
+                 return
+ 
+-            if not (1 <= day <= 31):
++            if not (1 <= month <= 12):
+                 self.send_response(400)
+                 self.send_header('Content-Type', 'application/json')
+                 self._send_cors_headers()
+                 self.end_headers()
+-                self.wfile.write(json.dumps({"success": False, "error": f"day must be 1-31, got {day}."}).encode('utf-8'))
++                self.wfile.write(json.dumps({"success": False, "error": f"month must be 1-12, got {month}."}).encode('utf-8'))
+                 return
+ 
+-            if not (1 <= month <= 12):
++            days_in_month = calendar.monthrange(2026, month)[1]
++            if not (1 <= day <= days_in_month):
+                 self.send_response(400)
+                 self.send_header('Content-Type', 'application/json')
+                 self._send_cors_headers()
+                 self.end_headers()
+-                self.wfile.write(json.dumps({"success": False, "error": f"month must be 1-12, got {month}."}).encode('utf-8'))
++                self.wfile.write(json.dumps({"success": False, "error": f"day must be 1-{days_in_month} for month {month}, got {day}."}).encode('utf-8'))
+                 return
+ 
+             airlines_info = [
+diff --git a/src/components/CreateAccountModal.jsx b/src/components/CreateAccountModal.jsx
+index 2325c0f0..98e5f92d 100644
+--- a/src/components/CreateAccountModal.jsx
++++ b/src/components/CreateAccountModal.jsx
+@@ -8,6 +8,12 @@ export default function CreateAccountModal({ isOpen, onClose }) {
+ 
+   if (!isOpen) return null;
+ 
++  const handleClose = () => {
++    setSubmitted(false);
++    setEmail('');
++    onClose();
++  };
++
+   const handleSubmit = (e) => {
+     e.preventDefault();
+     setSubmitted(true);
+@@ -23,7 +29,7 @@ export default function CreateAccountModal({ isOpen, onClose }) {
+       <div className="bg-white rounded-3xl max-w-md w-full max-h-[90dvh] overflow-y-auto border border-[#E5E7EB] shadow-2xl p-6 sm:p-8 relative my-8">
+         
+         <button
+-          onClick={onClose}
++          onClick={handleClose}
+           className="absolute top-6 right-6 p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-[#3D1014] transition-colors"
+         >
+           <X className="w-5 h-5" />
+@@ -78,10 +84,7 @@ export default function CreateAccountModal({ isOpen, onClose }) {
+               Your account has been activated. We've sent your AI fare forecasting dashboard access link to <span className="font-bold">{email}</span>.
+             </p>
+             <button
+-              onClick={() => {
+-                setSubmitted(false);
+-                onClose();
+-              }}
++              onClick={handleClose}
+               className="bg-[#3D1014] text-white font-semibold text-xs px-6 py-2.5 rounded-full"
+             >
+               Done
+diff --git a/src/components/HeroSection.jsx b/src/components/HeroSection.jsx
+index 76442e8b..e72ff2e3 100644
+--- a/src/components/HeroSection.jsx
++++ b/src/components/HeroSection.jsx
+@@ -12,6 +12,9 @@ export default function HeroSection({
+   onSwap,
+   onSearch
+ }) {
++  // Dynamic min date so users can't pick a day that's already passed
++  const todayStr = new Date().toISOString().slice(0, 10);
++
+   return (
+     <div className="w-full flex flex-col justify-center py-6 lg:py-12 relative z-30">
+       
+@@ -108,7 +111,7 @@ export default function HeroSection({
+           <input
+             type="date"
+             value={date}
+-            min="2026-01-01"
++            min={todayStr}
+             max="2027-12-31"
+             onChange={(e) => onDateChange(e.target.value)}
+             className="w-full bg-transparent text-lg sm:text-xl font-black text-[#3C1318] focus:outline-none cursor-pointer p-0"
