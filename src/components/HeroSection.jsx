@@ -12,35 +12,29 @@ export default function HeroSection({
   onSwap,
   onSearch
 }) {
-  // Dynamic min date so users can't pick a day that's already passed
   const todayStr = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="w-full flex flex-col justify-center py-6 lg:py-12 relative z-30">
+    <div className="w-full flex flex-col justify-center items-center py-6 lg:py-12 relative z-30">
       
-      {/* 1. Uppercase Tracking Badge */}
       <div className="mb-4 sm:mb-6">
         <span className="tracking-[0.25em] text-base sm:text-lg text-[#7A5C61] font-black uppercase">
           ROUTE FORECASTING <span className="opacity-50 mx-1">/</span> LIVE
         </span>
       </div>
 
-      {/* 2. Main Headline (+80% size) */}
       <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl xl:text-[124px] font-serif text-[#3C1318] leading-[1.05] sm:leading-[1.02] tracking-tight mb-8">
         Where will <br />
         <span className="italic font-normal">you go next?</span>
       </h1>
 
-      {/* 3. Subtitle Paragraph (+80% size) */}
       <p className="text-[#525252] max-w-2xl text-base sm:text-xl lg:text-2xl xl:text-3xl leading-relaxed mb-10 sm:mb-14 font-medium">
         Select origin and destination to generate live flight schedules <br className="hidden sm:inline" />
         &amp; fare forecasts with AI precision.
       </p>
 
-      {/* 4. Search Widget (+80% size) */}
       <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-search-card border border-stone-200/80 flex flex-col lg:flex-row items-stretch lg:items-center gap-4 sm:gap-6 w-full max-w-6xl relative z-30">
         
-        {/* FROM */}
         <div className="flex-1 lg:min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
           <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
             <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">FROM</span>
@@ -62,7 +56,6 @@ export default function HeroSection({
           </select>
         </div>
 
-        {/* Swap Control */}
         <div className="flex items-center justify-center shrink-0">
           <button
             onClick={onSwap}
@@ -74,7 +67,6 @@ export default function HeroSection({
           </button>
         </div>
 
-        {/* TO */}
         <div className="flex-1 lg:min-w-[280px] bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50">
           <div className="flex items-center space-x-2 mb-1.5 whitespace-nowrap">
             <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700">TO</span>
@@ -96,14 +88,12 @@ export default function HeroSection({
           </select>
         </div>
 
-        {/* Filter Sliders Icon */}
         <div className="hidden lg:flex items-center justify-center text-stone-500 px-1 shrink-0">
           <div className="w-14 h-14 rounded-2xl bg-[#F7F5F0] border border-stone-200/50 flex items-center justify-center text-stone-600">
             <SlidersHorizontal className="w-6 h-6" />
           </div>
         </div>
 
-        {/* DATE */}
         <div className="w-full lg:w-56 bg-[#F7F5F0] px-6 py-4.5 rounded-2xl border border-stone-200/50 shrink-0">
           <div className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-stone-700 mb-1">
             DATE
@@ -118,7 +108,6 @@ export default function HeroSection({
           />
         </div>
 
-        {/* Search Action Button */}
         <div className="shrink-0">
           <button
             onClick={onSearch}

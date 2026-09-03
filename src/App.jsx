@@ -58,9 +58,9 @@ export default function App() {
         )}
 
         {activeTheme === 'spinner' && (
-          <div className="w-full px-6 sm:px-12 lg:px-20 flex-grow flex flex-col justify-between max-w-[1920px] mx-auto py-8 animate-fade-in">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center w-full min-h-[calc(100vh-220px)]">
-              <div className="lg:col-span-6 flex flex-col justify-center my-auto lg:-ml-20 xl:-ml-32 z-30">
+          <div className="w-full flex-grow flex items-center justify-center px-6 sm:px-12 lg:px-16 xl:px-24 py-8 animate-fade-in">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 xl:gap-16 items-center w-full max-w-[1600px] mx-auto min-h-[calc(100vh-220px)]">
+              <div className="lg:col-span-6 flex flex-col justify-center z-30">
                 <HeroSection
                   source={source}
                   destination={destination}
@@ -72,8 +72,8 @@ export default function App() {
                   onSearch={handlePerformSearch}
                 />
               </div>
-              <div className="lg:col-span-7 flex items-center justify-end relative overflow-visible my-auto">
-                <Globe3D source={source} destination={destination} sizeScale={1.4} />
+              <div className="lg:col-span-6 flex items-center justify-end relative overflow-visible z-20">
+                <Globe3D source={source} destination={destination} sizeScale={1.4} shiftRight={true} />
               </div>
             </div>
           </div>
