@@ -72,7 +72,7 @@ export default function App() {
                   onSearch={handlePerformSearch}
                 />
               </div>
-              <div className="md:col-span-5 lg:col-span-5 flex items-center justify-start relative overflow-visible z-20 pl-4 md:pl-6">
+              <div className="md:col-span-5 lg:col-span-5 flex items-center justify-center relative overflow-visible z-20">
                 <Globe3D source={source} destination={destination} sizeScale={0.85} shiftRight={false} compact={true} />
               </div>
             </div>
