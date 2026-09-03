@@ -38,13 +38,15 @@ export default function App() {
   return (
     <div className="min-h-dvh bg-[#FAF7F2] text-[#3C1318] flex flex-col justify-between overflow-x-hidden selection:bg-[#00F2FE]/30 selection:text-[#3C1318] relative font-sans">
       
-      <Navbar
-        onGoHome={() => setActiveTheme('constellation')}
-        onOpenAccountModal={() => setIsAccountModalOpen(true)}
-        onOpenLoginModal={() => setIsLoginModalOpen(true)}
-        user={user}
-        onLogout={() => setUser(null)}
-      />
+      {activeTheme !== 'constellation' && (
+        <Navbar
+          onGoHome={() => setActiveTheme('constellation')}
+          onOpenAccountModal={() => setIsAccountModalOpen(true)}
+          onOpenLoginModal={() => setIsLoginModalOpen(true)}
+          user={user}
+          onLogout={() => setUser(null)}
+        />
+      )}
 
       <main className="flex-grow flex flex-col justify-center">
         
@@ -54,6 +56,7 @@ export default function App() {
             destination={destination}
             onEnterIntelligence={() => setActiveTheme('spinner')}
             onOpenAccount={() => setIsAccountModalOpen(true)}
+            onOpenLogin={() => setIsLoginModalOpen(true)}
           />
         )}
 

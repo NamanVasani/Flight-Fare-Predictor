@@ -2,15 +2,33 @@ import React from 'react';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import Globe3D from './Globe3D';
 
-export default function ConstellationView({ source, destination, onEnterIntelligence, onOpenAccount }) {
+export default function ConstellationView({ source, destination, onEnterIntelligence, onOpenAccount, onOpenLogin }) {
   return (
-    <div className="w-full flex-grow flex flex-col justify-between relative overflow-hidden bg-[#FAF7F2] min-h-[calc(100dvh-100px)] animate-fade-in">
+    <div className="w-full flex-grow flex flex-col justify-between relative overflow-hidden bg-[#FAF7F2] min-h-dvh animate-fade-in">
+
+      {/* Minimal floating auth buttons (matches reference: no logo bar on landing) */}
+      <div className="w-full px-4 sm:px-6 lg:px-10 pt-4 sm:pt-6 flex items-center gap-2 sm:gap-3 relative z-40">
+        <button
+          onClick={onOpenLogin}
+          type="button"
+          className="border border-[#3C1318] text-[#3C1318] px-4 sm:px-5 py-1.5 sm:py-2 rounded-full font-bold text-xs sm:text-sm hover:bg-[#3C1318]/5 transition-all cursor-pointer"
+        >
+          Log in
+        </button>
+        <button
+          onClick={onOpenAccount}
+          type="button"
+          className="bg-[#3C1318] hover:bg-[#280C10] text-white px-4 sm:px-5 py-1.5 sm:py-2 rounded-full font-bold text-xs sm:text-sm transition-all cursor-pointer"
+        >
+          Sign up
+        </button>
+      </div>
       
       {/* Main Orbital Content Grid (+80% size) */}
       <div className="max-w-[1920px] w-full mx-auto px-6 sm:px-12 lg:px-20 py-10 my-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-center relative z-20">
         
-        {/* Left Column (Headline & Action Buttons - Shifted 10-15% Left) */}
-        <div className="lg:col-span-6 space-y-8 max-w-3xl lg:-ml-12 xl:-ml-20 z-30">
+        {/* Left Column (Headline & Action Buttons) */}
+        <div className="lg:col-span-6 space-y-8 max-w-3xl z-30">
           
           <div className="inline-flex items-center space-x-2">
             <span className="tracking-[0.28em] text-sm sm:text-base font-black uppercase text-[#7A5C61]">
