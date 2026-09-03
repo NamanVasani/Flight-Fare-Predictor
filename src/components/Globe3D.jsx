@@ -203,7 +203,7 @@ export default function Globe3D({
 
   // Dynamic Shift Class — shifts the globe further right when `shiftRight` is true
   const shiftClass = shiftRight
-    ? 'translate-x-24 sm:translate-x-36 lg:translate-x-48 xl:translate-x-60' 
+    ? 'translate-x-20 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44' 
     : compact
       ? 'translate-x-0'
       : 'translate-x-16 sm:translate-x-28 lg:translate-x-36 xl:translate-x-44';
