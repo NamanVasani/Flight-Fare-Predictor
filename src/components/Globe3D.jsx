@@ -221,7 +221,7 @@ export default function Globe3D({
       {/* 3D Globe Canvas Container */}
       <div 
         style={{ width: `${globeDimension}px`, height: `${globeDimension}px`, touchAction: 'pan-y' }}
-        className={`rounded-full relative cursor-grab active:cursor-grabbing overflow-visible flex items-center justify-center ${shiftClass}`}
+        className={`rounded-full relative cursor-grab active:cursor-grabbing overflow-visible flex items-center justify-center transition-transform duration-300 ease-out hover:scale-110 ${shiftClass}`}
       >
         <Globe
           ref={globeRef}
