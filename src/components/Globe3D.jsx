@@ -65,17 +65,10 @@ export default function Globe3D({
     };
   }, []);
 
-  // Calculated dimension based on scale, capped by viewport so it always fits
-  // without overlapping adjacent content (text column) at any screen size.
+  // Calculated dimension based on scale — renders at full configured size,
+  // not shrunk by viewport.
   const desiredDimension = Math.round((compact ? 550 : 1250) * sizeScale);
-  const viewportCap = viewportWidth < 480
-    ? viewportWidth * 0.9    // small phones: near full-width, single column
-    : viewportWidth < 768
-      ? viewportWidth * 0.78 // tablets/large phones: single column, mostly full width
-      : viewportWidth < 1024
-        ? viewportWidth * 0.7  // small laptops just under the 2-column breakpoint
-        : viewportWidth * 0.48; // desktop 2-column layout: globe gets its own half
-  const globeDimension = Math.round(Math.min(desiredDimension, viewportCap));
+  const globeDimension = desiredDimension;
 
   // Animated airplane position along the arc
   const [planePos, setPlanePos] = useState(() => 
@@ -223,7 +216,7 @@ export default function Globe3D({
       {/* 3D Globe Canvas Container */}
       <div 
         style={{ width: `${globeDimension}px`, height: `${globeDimension}px`, touchAction: 'pan-y' }}
-        className={`rounded-full relative cursor-grab active:cursor-grabbing overflow-visible flex items-center justify-center ${shiftClass}`}
+        className={`rounded-full relative cursor-grab active:cursor-grabbing overflow-hidden flex items-center justify-center ${shiftClass}`}
       >
         <Globe
           ref={globeRef}
