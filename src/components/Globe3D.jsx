@@ -65,10 +65,15 @@ export default function Globe3D({
     };
   }, []);
 
-  // Calculated dimension based on scale — renders at full configured size,
-  // not shrunk by viewport.
+  // Calculated dimension based on scale, capped generously so it stays large
+  // and fills its space without ballooning the halo/page height past the screen.
   const desiredDimension = Math.round((compact ? 550 : 1250) * sizeScale);
-  const globeDimension = desiredDimension;
+  const viewportCap = viewportWidth < 640
+    ? viewportWidth * 0.95   // phones: fill most of the width
+    : viewportWidth < 1024
+      ? viewportWidth * 0.85 // tablets/small laptops
+      : Math.min(viewportWidth * 0.6, 900); // desktop: large but capped so the halo/page never exceed the viewport
+  const globeDimension = Math.round(Math.min(desiredDimension, viewportCap));
 
   // Animated airplane position along the arc
   const [planePos, setPlanePos] = useState(() => 
