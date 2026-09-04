@@ -69,10 +69,10 @@ export default function Globe3D({
   // and fills its space without ballooning the halo/page height past the screen.
   const desiredDimension = Math.round((compact ? 550 : 1250) * sizeScale);
   const viewportCap = viewportWidth < 640
-    ? viewportWidth * 0.95   // phones: fill most of the width
+    ? viewportWidth * 0.85
     : viewportWidth < 1024
-      ? viewportWidth * 0.85 // tablets/small laptops
-      : Math.min(viewportWidth * 0.6, 900); // desktop: large but capped so the halo/page never exceed the viewport
+      ? viewportWidth * 0.7
+      : Math.min(viewportWidth * 0.42, 620);
   const globeDimension = Math.round(Math.min(desiredDimension, viewportCap));
 
   // Animated airplane position along the arc
@@ -209,13 +209,13 @@ export default function Globe3D({
   return (
     <div
       className={`relative w-full flex items-center ${compact ? 'justify-start' : 'justify-end'} pointer-events-auto overflow-visible my-auto`}
-      style={{ minHeight: `${Math.round(globeDimension * 1.12)}px` }}
+      style={{ minHeight: `${globeDimension}px` }}
     >
       
-      {/* Soft Cyan Atmospheric Halo behind Globe — sized relative to the actual globe so it stays contained around the earth */}
+      {/* Soft Cyan Atmospheric Halo behind Globe — tight and contained */}
       <div
-        className={`absolute rounded-full bg-[#00F2FE]/18 blur-2xl pointer-events-none -z-10 ${shiftClass}`}
-        style={{ width: `${Math.round(globeDimension * 1.12)}px`, height: `${Math.round(globeDimension * 1.12)}px` }}
+        className={`absolute rounded-full bg-[#00F2FE]/10 blur-lg pointer-events-none -z-10 ${shiftClass}`}
+        style={{ width: `${Math.round(globeDimension * 1.03)}px`, height: `${Math.round(globeDimension * 1.03)}px` }}
       ></div>
 
       {/* 3D Globe Canvas Container */}
