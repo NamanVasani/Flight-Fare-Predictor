@@ -1,3 +1,4 @@
 {
-	"siteId": "56fe9105-ca3f-4f7c-829e-beb10cfc12ae"
+	"siteId": "56fe9105-ca3f-4f7c-829e-beb10cfc12ae",
+	"dbConnectionString": "postgres://localhost:36659/postgres"
 }
